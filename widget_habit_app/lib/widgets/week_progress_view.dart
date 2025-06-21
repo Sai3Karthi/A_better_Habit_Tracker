@@ -97,7 +97,7 @@ class _WeekProgressViewState extends State<WeekProgressView>
     final weekStart = widget.currentWeekStart ?? _getWeekStart(DateTime.now());
 
     return Container(
-      height: 54, // Increased to accommodate larger tick boxes
+      height: 57, // Increased from 54 to fix 3-pixel overflow
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(7, (index) {
