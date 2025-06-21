@@ -1,0 +1,56 @@
+package com.example.widget_habit_app
+
+import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
+import androidx.glance.GlanceId
+import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.provideContent
+import androidx.glance.background
+import androidx.glance.layout.Column
+import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.padding
+import androidx.glance.text.Text
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.items
+import androidx.glance.color.ColorProvider
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.decodeFromString
+
+class HabitGlanceWidget : GlanceAppWidget() {
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        provideContent {
+            GlanceContent(context)
+        }
+    }
+
+    @Composable
+    private fun GlanceContent(context: Context) {
+        val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
+        val jsonString = prefs.getString("habits_json", null)
+        
+        val habits = if (jsonString != null) {
+            val habitList = Json.decodeFromString<Map<String, List<HabitWidgetData>>>(jsonString)
+            habitList["habits"] ?: emptyList()
+        } else {
+            emptyList()
+        }
+
+        Column(
+            modifier = androidx.glance.layout.GlanceModifier
+                .fillMaxSize()
+                .background(ColorProvider(android.R.color.transparent))
+                .padding(16.dp)
+        ) {
+            if (habits.isEmpty()) {
+                Text("No habits to display")
+            } else {
+                LazyColumn {
+                    items(habits) { habit ->
+                        Text("${if (habit.completed) "✅" else "❌"} ${habit.name}")
+                    }
+                }
+            }
+        }
+    }
+} 

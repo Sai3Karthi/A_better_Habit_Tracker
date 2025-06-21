@@ -1,0 +1,157 @@
+
+{
+  "project_name": "Elysian Goals - A Performant Habit Tracker",
+  "project_vision": "To engineer a best-in-class habit tracking application for Android, distinguished by its fluid, 120Hz user experience, and a visually seamless, transparent home screen widget. The application must be architecturally robust, highly customizable, and provide users with meaningful insights into their personal growth.",
+  "core_principles": [
+    "Performance First: Every architectural decision and feature implementation must prioritize UI smoothness and low-latency interaction, targeting consistent 120fps rendering.",
+    "User-Centric Customization: Empower users to tailor the application's appearance and functionality to their personal preferences, from theming to widget configuration.",
+    "Meaningful Insights: Go beyond simple tracking to provide users with actionable data, statistics, and visualizations that motivate and inform.",
+    "Seamless Integration: The home screen widget should feel like a native extension of the Android OS, providing at-a-glance information and quick interactions."
+  ],
+  "technical_architecture": {
+    "app_framework": {
+      "name": "Flutter (Dart)",
+      "rationale": "High-performance, cross-platform UI toolkit enabling a single codebase for the app's logic and a beautiful, natively compiled interface."
+    },
+    "widget_framework": {
+      "name": "Android Native (Kotlin with Jetpack Glance API)",
+      "rationale": "Jetpack Glance is the modern, recommended approach for building declarative, performant, and responsive home screen widgets on Android. It avoids the overhead of running a full Flutter instance for the widget."
+    },
+    "state_management": {
+      "name": "Riverpod",
+      "rationale": "Provides compile-safe dependency injection and state management, preventing runtime errors. Its provider model is excellent for decoupling UI from business logic and selectively rebuilding widgets, which is critical for performance."
+    },
+    "local_database": {
+      "name": "Hive",
+      "rationale": "A pure-Dart, key-value database that is exceptionally fast and lightweight. Ideal for this use case, offering significantly better performance than SQLite for direct object storage without complex queries. All data models will be implemented as Hive objects using `TypeAdapters` for maximum serialization speed."
+    },
+    "navigation": {
+      "name": "go_router",
+      "rationale": "A declarative routing package that simplifies navigation, supports deep linking, and handles platform-specific navigation patterns cleanly."
+    },
+    "asynchronous_operations": {
+      "strategy": "Utilize `async/await` with `FutureProvider` and `StreamProvider` from Riverpod to handle data fetching and streams. For computationally intensive tasks (e.g., generating large statistical reports), use `Isolate.run()` to move the work off the main UI thread, preventing any frame drops."
+    }
+  },
+  "performance_and_optimization_strategy": {
+    "primary_goal": "Consistently achieve frame build and raster times under 8.3ms to deliver a flawless 120Hz experience. Proactively identify and eliminate sources of jank.",
+    "profiling_mandate": "Regularly profile the application in profile mode on a physical 120Hz device using Flutter DevTools. Focus on the 'Performance' view to analyze frame times and the 'CPU Profiler' to identify expensive method calls.",
+    "optimization_techniques": [
+      {
+        "area": "Build Phase (UI Thread)",
+        "techniques": [
+          "Immutable Widgets: Aggressively use `const` constructors for all static widgets and components to allow Flutter to skip rebuilding them entirely.",
+          "Selective Rebuilds: Use `Provider.select` or the `.select` aspect of Riverpod providers to ensure a widget only rebuilds in response to the specific data slice it cares about.",
+          "Subtree Caching: Utilize the `child` parameter in `AnimatedBuilder` and state management providers to pass in static widget subtrees that should not be rebuilt during state changes.",
+          "Efficient Lists: Always use `ListView.builder` and `GridView.builder` for lists. Implement `itemExtent` where possible to allow Flutter to pre-calculate the scroll layout, which is a major performance boost."
+        ]
+      },
+      {
+        "area": "Layout and Paint Phase (UI Thread)",
+        "techniques": [
+          "Minimize Opacity/Clipping: Avoid the `Opacity` widget when possible, especially in animations. Prefer `FadeInImage` or animating a color's opacity property on a `Container`. Use `Clip.hardEdge` instead of anti-aliased clipping when visual fidelity allows. Avoid `ShaderMask` and `ColorFilter` in performance-critical paths.",
+          "Repaint Boundaries: Strategically wrap complex, frequently changing animations (like a running timer) in a `RepaintBoundary` widget. This isolates the repaint to a specific layer, preventing the entire screen from being repainted.",
+          "Reduce Layout Complexity: Keep widget trees as shallow as possible. Use `SizedBox` instead of `Container` for empty spacing. Use specialized widgets like `Row` and `Column` with `MainAxisSize.min` to prevent them from taking up unnecessary space."
+        ]
+      },
+      {
+        "area": "Rasterization (Raster Thread) & Shaders",
+        "techniques": [
+          "Pre-compile Shaders: To eliminate first-run animation jank, run `flutter build apk --precompile-shaders` (or the equivalent for your target) and test the app with the resulting 'skia shader language' file. This warms up the Skia rendering engine.",
+          "Texture & Image Optimization: Use `cached_network_image` for network images and ensure all local image assets are compressed to a reasonable size to reduce memory usage and texture upload times."
+        ]
+      }
+    ]
+  },
+  "development_phases": [
+    {
+      "phase_name": "Phase 1: Core Architecture & Habit Engine",
+      "milestones": [
+        {
+          "name": "Project Setup & Data Modeling",
+          "implementation_details": "Initialize Flutter project with Riverpod, Hive, and go_router. Create the `Habit` model class with `@HiveType` annotations, including fields for `id`, `name`, `iconId`, `colorHex`, `frequency` (list of weekdays), `creationDate`. Generate `TypeAdapter` using `hive_generator`."
+        },
+        {
+          "name": "Repository & State Management",
+          "implementation_details": "Create a `HabitRepository` class that abstracts all Hive database operations (CRUD). Implement a `habitsProvider` using Riverpod's `StateNotifierProvider` that uses the repository to manage the list of habits."
+        },
+        {
+          "name": "Main UI - Week View",
+          "implementation_details": "Build the main screen. Use a `GridView.builder` for the weekly calendar grid. Each cell will be a separate, optimized widget that listens to the state of a specific habit on a specific day. Implement tap gestures to mark habits complete, which calls a method on the `StateNotifier` to update the state and persist the change via the repository."
+        }
+      ]
+    },
+    {
+      "phase_name": "Phase 2: Android Widget & Synchronization",
+      "milestones": [
+        {
+          "name": "Glance Widget UI",
+          "implementation_details": "In the native Android module, create a `HabitWidgetReceiver` (GlanceAppWidgetReceiver) and a `HabitGlanceWidget` (GlanceAppWidget). The UI will be composed using Glance composables (`Column`, `Row`, `Text`). The background will be set to `ColorProviders.Transparent`."
+        },
+        {
+          "name": "Data Synchronization Bridge",
+          "implementation_details": "Use the `home_widget` package. Create a function in Flutter, `updateWidgetData()`, that serializes a list of today's habits into a JSON string. This function calls `HomeWidget.saveWidgetData<String>('habits_json', jsonString)` and then `HomeWidget.updateWidget()`. The Kotlin `GlanceAppWidget` will read this JSON string from SharedPreferences, deserialize it (using a library like kotlinx.serialization), and render the UI."
+        }
+      ]
+    },
+    {
+      "phase_name": "Phase 3: Advanced Features & Gamification",
+      "milestones": [
+        {
+          "name": "Advanced Habit Types",
+          "implementation_details": "Extend the `Habit` model to include a `type` enum (e.g., `simple`, `measurable`). For measurable habits, add `targetValue` and `unit` fields. The UI will conditionally show a '+' button or a numeric input."
+        },
+        {
+          "name": "Gamification Engine",
+          "implementation_details": "Create a `StatsService` that calculates streaks, total completions, and assigns points. Implement an 'Achievements' system where specific milestones unlock badges or new theme colors."
+        },
+        {
+          "name": "Statistics & Visualization",
+          "implementation_details": "Create a dedicated stats page using the `fl_chart` package. Implement a calendar heatmap view to show habit consistency and bar charts for weekly/monthly completions."
+        },
+        {
+          "name": "Reminders",
+          "implementation_details": "Integrate the `flutter_local_notifications` package to allow users to set custom reminders for each habit."
+        }
+      ]
+    },
+    {
+      "phase_name": "Phase 4: Deep Customization & QoL",
+      "milestones": [
+        {
+          "name": "Dynamic Theming Engine",
+          "implementation_details": "Create a `ThemeNotifier` (Riverpod provider) that holds the current `ThemeData`. Build a settings screen where users can change primary color, accent color, and switch between light, dark, and a true AMOLED black theme. Store the user's selected theme in Hive."
+        },
+        {
+          "name": "Widget Customization",
+          "implementation_details": "In the app, create a 'Widget Settings' screen. Allow users to multi-select which habits to display, adjust the widget's background opacity (from full transparent to semi-opaque), and change the font size. These settings will be saved and passed to the Glance widget via the JSON data bridge."
+        },
+        {
+          "name": "Accessibility (A11y) Pass",
+          "implementation_details": "Wrap all interactive elements in `Semantics` widgets with proper labels. Ensure all color combinations meet WCAG AA contrast ratios. Test the entire app flow using Android's TalkBack screen reader."
+        },
+        {
+          "name": "Data Backup & Restore",
+          "implementation_details": "Implement 'Export to JSON' and 'Import from JSON' functionality using the `file_picker` and `path_provider` packages. This provides a simple, robust backup solution for users."
+        }
+      ]
+    },
+    {
+      "phase_name": "Phase 5: Polish & Deployment",
+      "milestones": [
+        {
+          "name": "Haptic & Auditory Feedback",
+          "implementation_details": "Use the `haptic_feedback` package to provide subtle vibrations on task completion. Add optional, minimalist sounds for key interactions."
+        },
+        {
+          "name": "Onboarding Flow",
+          "implementation_details": "Create a simple, skippable onboarding flow for new users using the `introduction_screen` package to explain core features and request necessary permissions (like notifications)."
+        },
+        {
+          "name": "Final Build & Release",
+          "implementation_details": "Use `flutter_launcher_icons` and `flutter_native_splash` to create polished branding. Generate a signed Android App Bundle (`flutter build appbundle --release`). Perform thorough testing on multiple physical devices before uploading to the Google Play Console, including filling out all store listing details."
+        }
+      ]
+    }
+  ]
+}
