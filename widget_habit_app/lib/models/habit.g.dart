@@ -8,7 +8,7 @@ part of 'habit.dart';
 
 class HabitAdapter extends TypeAdapter<Habit> {
   @override
-  final int typeId = 0;
+  final int typeId = 1;
 
   @override
   Habit read(BinaryReader reader) {
@@ -25,13 +25,18 @@ class HabitAdapter extends TypeAdapter<Habit> {
       creationDate: fields[5] as DateTime,
       completedDates: (fields[6] as List?)?.cast<DateTime>(),
       missedDates: (fields[7] as List?)?.cast<DateTime>(),
+      type: fields[8] as HabitType,
+      targetValue: fields[9] as int?,
+      unit: fields[10] as String?,
+      dailyValues: (fields[11] as Map?)?.cast<String, int>(),
+      completionThreshold: fields[12] as double,
     );
   }
 
   @override
   void write(BinaryWriter writer, Habit obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +52,17 @@ class HabitAdapter extends TypeAdapter<Habit> {
       ..writeByte(6)
       ..write(obj.completedDates)
       ..writeByte(7)
-      ..write(obj.missedDates);
+      ..write(obj.missedDates)
+      ..writeByte(8)
+      ..write(obj.type)
+      ..writeByte(9)
+      ..write(obj.targetValue)
+      ..writeByte(10)
+      ..write(obj.unit)
+      ..writeByte(11)
+      ..write(obj.dailyValues)
+      ..writeByte(12)
+      ..write(obj.completionThreshold);
   }
 
   @override
@@ -57,6 +72,45 @@ class HabitAdapter extends TypeAdapter<Habit> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is HabitAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class HabitTypeAdapter extends TypeAdapter<HabitType> {
+  @override
+  final int typeId = 0;
+
+  @override
+  HabitType read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return HabitType.simple;
+      case 1:
+        return HabitType.measurable;
+      default:
+        return HabitType.simple;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, HabitType obj) {
+    switch (obj) {
+      case HabitType.simple:
+        writer.writeByte(0);
+        break;
+      case HabitType.measurable:
+        writer.writeByte(1);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HabitTypeAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

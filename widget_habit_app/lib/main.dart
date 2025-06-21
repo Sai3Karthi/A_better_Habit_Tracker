@@ -10,6 +10,9 @@ Future<void> main() async {
 
   // Initialize Hive
   await Hive.initFlutter();
+
+  // Register adapters - CRITICAL: Register HabitTypeAdapter first!
+  Hive.registerAdapter(HabitTypeAdapter());
   Hive.registerAdapter(HabitAdapter());
 
   // Open Hive box

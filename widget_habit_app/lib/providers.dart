@@ -5,6 +5,7 @@ import 'repositories/habit_repository.dart';
 import 'repositories/i_habit_repository.dart';
 import 'services/widget_updater.dart';
 import 'services/stats_service.dart';
+import 'themes/theme_manager.dart';
 
 // 1. Provider for the Hive box for habits.
 final habitBoxProvider = Provider<Box<Habit>>((ref) {
