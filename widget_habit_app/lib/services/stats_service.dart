@@ -9,25 +9,20 @@ class StatsService {
   /// Calculate comprehensive streak statistics for a habit
   StreakStats calculateStreakStats(Habit habit) {
     final currentStreak = habit.getCurrentStreak();
+    final currentFailStreak = habit.getCurrentFailStreak();
     final longestStreak = habit.getLongestStreak();
     final completionRate = habit.getCompletionRate();
 
-    // EMERGENCY: Ensure we always show SOMETHING
-    final displayCurrent = currentStreak > 0 ? currentStreak : 0;
-    final displayLongest = longestStreak > displayCurrent
-        ? longestStreak
-        : displayCurrent;
-    final displayRate = completionRate > 0 ? completionRate : 0.0;
-
-    // Force milestone calculation to show something
-    final daysUntilNextMilestone = _getDaysUntilNextMilestone(displayCurrent);
+    // Calculate proper milestone progression based on longest streak
+    final daysUntilNextMilestone = _getDaysUntilNextMilestone(longestStreak);
 
     return StreakStats(
-      current: displayCurrent,
-      longest: displayLongest,
-      completionRate: displayRate,
-      streakTier: _getStreakTier(displayCurrent),
-      isOnFire: displayCurrent >= 7,
+      current: currentStreak,
+      currentFails: currentFailStreak,
+      longest: longestStreak,
+      completionRate: completionRate,
+      streakTier: _getStreakTier(currentStreak),
+      isOnFire: currentStreak >= 7,
       daysUntilNextMilestone: daysUntilNextMilestone,
     );
   }
@@ -158,29 +153,30 @@ class StatsService {
     return StreakTier.none;
   }
 
-  /// Calculate days until next milestone
-  int _getDaysUntilNextMilestone(int currentStreak) {
+  /// Calculate days until next milestone - FIXED to use longest streak
+  int _getDaysUntilNextMilestone(int longestStreak) {
     const milestones = [7, 30, 100, 365];
 
-    // EMERGENCY: Always return a visible number
-    if (currentStreak <= 0) return 7; // Show 7 days to first milestone
+    // Show days to first milestone if no progress yet
+    if (longestStreak <= 0) return 7;
 
-    // Find the next milestone the user hasn't achieved yet
+    // Find the next milestone the user hasn't achieved yet based on LONGEST streak
     for (final milestone in milestones) {
-      if (currentStreak < milestone) {
-        return milestone - currentStreak;
+      if (longestStreak < milestone) {
+        return milestone - longestStreak;
       }
     }
 
     // Already at highest milestone (365+), show next century milestone
-    final nextCenturyMilestone = ((currentStreak ~/ 100) + 1) * 100;
-    return nextCenturyMilestone - currentStreak;
+    final nextCenturyMilestone = ((longestStreak ~/ 100) + 1) * 100;
+    return nextCenturyMilestone - longestStreak;
   }
 }
 
 /// Data class for streak statistics
 class StreakStats {
   final int current;
+  final int currentFails;
   final int longest;
   final double completionRate;
   final StreakTier streakTier;
@@ -189,6 +185,7 @@ class StreakStats {
 
   const StreakStats({
     required this.current,
+    required this.currentFails,
     required this.longest,
     required this.completionRate,
     required this.streakTier,

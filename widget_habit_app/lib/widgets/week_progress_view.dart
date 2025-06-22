@@ -92,6 +92,20 @@ class _WeekProgressViewState extends State<WeekProgressView>
     );
   }
 
+  // Show feedback when user tries to tap inactive date
+  void _showInactiveDateFeedback() {
+    final habitTheme = HabitTheme.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          "This habit is not active on this date (outside date range)",
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: habitTheme.habitFuture,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final weekStart = widget.currentWeekStart ?? _getWeekStart(DateTime.now());
@@ -103,23 +117,32 @@ class _WeekProgressViewState extends State<WeekProgressView>
         children: List.generate(7, (index) {
           final day = weekStart.add(Duration(days: index));
           final status = widget.habit.getStatusForDate(day);
-          final isFuture = _isFutureDate(day);
           final isValidDay = _isValidDay(day);
+          final isActiveDate = widget.habit.isActiveOnDate(day);
+          final isFuture = _isFutureDate(day);
 
           return GestureDetector(
-            onTapDown: (isFuture || !isValidDay)
+            onTapDown: (!isActiveDate || !isValidDay || isFuture)
                 ? null
                 : (_) => _onTapDown(index),
-            onTapUp: (isFuture || !isValidDay) ? null : (_) => _onTapUp(index),
-            onTapCancel: (isFuture || !isValidDay)
+            onTapUp: (!isActiveDate || !isValidDay || isFuture)
+                ? null
+                : (_) => _onTapUp(index),
+            onTapCancel: (!isActiveDate || !isValidDay || isFuture)
                 ? null
                 : () => _onTapUp(index),
-            onTap: _getOnTapHandler(day, status, isFuture, isValidDay),
+            onTap: _getOnTapHandler(
+              day,
+              status,
+              isFuture,
+              isValidDay,
+              isActiveDate,
+            ),
             child: AnimatedBuilder(
               animation: _scaleAnimations[index],
               builder: (context, child) {
                 return Transform.scale(
-                  scale: (isFuture || !isValidDay)
+                  scale: (!isActiveDate || !isValidDay || isFuture)
                       ? 1.0
                       : _scaleAnimations[index].value,
                   child: Column(
@@ -136,12 +159,19 @@ class _WeekProgressViewState extends State<WeekProgressView>
                             status,
                             isFuture,
                             isValidDay,
+                            isActiveDate,
                           ),
                         ),
                       ),
                       const SizedBox(height: 4), // Increased spacing
                       // Enhanced status indicator based on habit type
-                      _buildSmartTickBox(day, status, isFuture, isValidDay),
+                      _buildSmartTickBox(
+                        day,
+                        status,
+                        isFuture,
+                        isValidDay,
+                        isActiveDate,
+                      ),
                     ],
                   ),
                 );
@@ -167,13 +197,19 @@ class _WeekProgressViewState extends State<WeekProgressView>
     HabitStatus status,
     bool isFuture,
     bool isValidDay,
+    bool isActiveDate,
   ) {
-    if (isFuture) {
-      return _showFutureDateFeedback;
+    // Phase 3A.2.2: Check active date FIRST
+    if (!isActiveDate) {
+      return () => _showInactiveDateFeedback();
     }
 
     if (!isValidDay) {
       return () => _showExcludedDayFeedback();
+    }
+
+    if (isFuture) {
+      return _showFutureDateFeedback;
     }
 
     if (widget.onDateTap == null) return null;
@@ -200,13 +236,19 @@ class _WeekProgressViewState extends State<WeekProgressView>
     HabitStatus status,
     bool isFuture,
     bool isValidDay,
+    bool isActiveDate,
   ) {
-    if (isFuture) {
-      return _buildFutureTickBox();
+    // Phase 3A.2.2: Check active date FIRST
+    if (!isActiveDate) {
+      return _buildInactiveTickBox();
     }
 
     if (!isValidDay) {
       return _buildExcludedTickBox();
+    }
+
+    if (isFuture) {
+      return _buildFutureTickBox();
     }
 
     if (widget.habit.type == HabitType.simple) {
@@ -243,6 +285,25 @@ class _WeekProgressViewState extends State<WeekProgressView>
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(Icons.block, color: habitTheme.textSecondary, size: 16),
+    );
+  }
+
+  // Build tick box for inactive dates (outside date range)
+  Widget _buildInactiveTickBox() {
+    final habitTheme = HabitTheme.of(context);
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: Colors.grey[800]!.withValues(alpha: 0.3),
+        border: Border.all(color: Colors.grey[600]!, width: 1.0),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        Icons.calendar_today_outlined,
+        color: Colors.grey[500],
+        size: 14,
+      ),
     );
   }
 
@@ -324,11 +385,27 @@ class _WeekProgressViewState extends State<WeekProgressView>
   }
 
   // Get date text color based on state
-  Color _getDateTextColor(HabitStatus status, bool isFuture, bool isValidDay) {
+  Color _getDateTextColor(
+    HabitStatus status,
+    bool isFuture,
+    bool isValidDay,
+    bool isActiveDate,
+  ) {
     final habitTheme = HabitTheme.of(context);
-    if (isFuture || !isValidDay) {
+
+    // Phase 3A.2.2: Check active date FIRST - only grey out if truly outside range
+    if (!isActiveDate) {
+      return Colors.grey[600]!; // More muted for inactive dates
+    }
+
+    if (!isValidDay) {
       return habitTheme.textHint;
     }
+
+    if (isFuture) {
+      return habitTheme.textHint;
+    }
+
     return _getDateColor(status);
   }
 

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/habit.dart';
 import '../providers.dart';
 import '../services/stats_service.dart';
+import '../themes/habit_theme.dart';
 import 'week_progress_view.dart';
 import 'achievements_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class HabitListItem extends ConsumerWidget {
   final Habit habit;
@@ -18,60 +20,65 @@ class HabitListItem extends ConsumerWidget {
     final streakStats = statsService.calculateStreakStats(habit);
     final achievements = statsService.getAchievements(habit);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[800],
-        borderRadius: BorderRadius.circular(16),
-        border: streakStats.isOnFire
-            ? Border.all(
-                color: _getStreakColor(streakStats.streakTier),
-                width: 2,
-              )
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with habit name and streak badge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  habit.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+    return GestureDetector(
+      onLongPress: () {
+        _showDeleteConfirmation(context, ref);
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[800],
+          borderRadius: BorderRadius.circular(16),
+          border: streakStats.isOnFire
+              ? Border.all(
+                  color: _getStreakColor(streakStats.streakTier),
+                  width: 2,
+                )
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with habit name and streak badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    habit.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-              // ALWAYS show streak badge, even if 0
-              _buildStreakBadge(context, streakStats, achievements),
+                // ALWAYS show streak badge, even if 0
+                _buildStreakBadge(context, streakStats, achievements),
+              ],
+            ),
+
+            // Achievement badges row (if any)
+            if (achievements.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              _buildAchievementBadges(achievements),
             ],
-          ),
 
-          // Achievement badges row (if any)
-          if (achievements.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            _buildAchievementBadges(achievements),
+            const SizedBox(height: 8),
+            WeekProgressView(
+              habit: habit,
+              currentWeekStart: currentWeekStart,
+              onDateTap: (date, newStatus) {
+                habit.setStatusForDate(date, newStatus);
+                ref.read(habitsProvider.notifier).updateHabit(habit);
+              },
+            ),
+
+            // ALWAYS show stats summary
+            const SizedBox(height: 8),
+            _buildStatsSummary(context, streakStats, achievements),
           ],
-
-          const SizedBox(height: 8),
-          WeekProgressView(
-            habit: habit,
-            currentWeekStart: currentWeekStart,
-            onDateTap: (date, newStatus) {
-              habit.setStatusForDate(date, newStatus);
-              ref.read(habitsProvider.notifier).updateHabit(habit);
-            },
-          ),
-
-          // ALWAYS show stats summary
-          const SizedBox(height: 8),
-          _buildStatsSummary(context, streakStats, achievements),
-        ],
+        ),
       ),
     );
   }
@@ -81,40 +88,78 @@ class HabitListItem extends ConsumerWidget {
     StreakStats stats,
     List<Achievement> achievements,
   ) {
+    final failStreak = habit.getCurrentFailStreak();
+
     return GestureDetector(
       onTap: () => _showAchievementsScreen(context, achievements, stats),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: _getStreakColor(stats.streakTier),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: stats.isOnFire
-              ? [
-                  BoxShadow(
-                    color: _getStreakColor(
-                      stats.streakTier,
-                    ).withValues(alpha: 0.4),
-                    blurRadius: 8,
-                    spreadRadius: 1,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Current streak badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _getStreakColor(stats.streakTier),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: stats.isOnFire
+                  ? [
+                      BoxShadow(
+                        color: _getStreakColor(
+                          stats.streakTier,
+                        ).withValues(alpha: 0.4),
+                        blurRadius: 8,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _getStreakIcon(stats),
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${stats.current}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_getStreakIcon(stats), style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 4),
-            Text(
-              '${stats.current}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+                ),
+              ],
+            ),
+          ),
+
+          // Fail streak badge (only if there are fails)
+          if (failStreak > 0) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.red[600],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('💔', style: TextStyle(fontSize: 14)),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$failStreak',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -179,12 +224,21 @@ class HabitListItem extends ConsumerWidget {
             ),
             const SizedBox(width: 8),
 
-            // Completion rate if available
-            if (stats.completionRate > 0) ...[
+            // Completion stats (NEW)
+            Text(
+              habit.getCompletionStats().getDisplayText(),
+              style: TextStyle(color: Colors.grey[400], fontSize: 11),
+            ),
+
+            // Date range info if available (Phase 3A.2.2)
+            if (habit.getDateRangeText().isNotEmpty) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.calendar_today, size: 10, color: Colors.grey),
+              const SizedBox(width: 2),
               Flexible(
                 child: Text(
-                  '${(stats.completionRate * 100).toInt()}%',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  habit.getDateRangeText(),
+                  style: TextStyle(color: Colors.grey[400], fontSize: 10),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -258,6 +312,160 @@ class HabitListItem extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, WidgetRef ref) {
+    final habitTheme = HabitTheme.of(context);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: habitTheme.cardBackground,
+          title: Text(
+            'Delete Habit',
+            style: TextStyle(color: habitTheme.textPrimary),
+          ),
+          content: Text(
+            'Bro you damn sure you want to delete this habit? "${habit.name}"? i give you 5 fucking seconds to change your mind dont cry later.',
+            style: TextStyle(color: habitTheme.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: habitTheme.textHint),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+
+                // Store habit info before async operations to avoid context issues
+                final habitId = habit.id;
+                final habitName = habit.name;
+
+                try {
+                  await ref
+                      .read(habitsProvider.notifier)
+                      .temporaryDeleteHabit(habitId);
+                  print(
+                    'DEBUG: Successfully temporarily deleted habit: $habitName',
+                  );
+
+                  // Show success feedback with working undo
+                  if (context.mounted) {
+                    _showDeleteFeedback(context, ref, habitId, habitName);
+                  }
+                } catch (e) {
+                  print('DEBUG: Error deleting habit: $e');
+                  // TODO: Show error dialog if needed
+                }
+              },
+              child: Text(
+                'Delete',
+                style: TextStyle(color: habitTheme.habitMissed),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteFeedback(
+    BuildContext context,
+    WidgetRef ref,
+    String habitId,
+    String habitName,
+  ) {
+    final habitTheme = HabitTheme.of(context);
+
+    // Store the provider container when creating the SnackBar, not when undo is clicked
+    final container = ProviderScope.containerOf(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: habitTheme.cardBackground,
+        content: Text(
+          'Habit "$habitName" deleted',
+          style: TextStyle(color: habitTheme.textPrimary),
+        ),
+        duration: const Duration(seconds: 5), // Match undo timeout
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: habitTheme.habitCompleted,
+          onPressed: () {
+            print('DEBUG: Undo button tapped for habit: $habitName');
+            // Use the stored container directly, no context needed
+            _performUndoWithContainer(container, context, habitId, habitName);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _performUndoWithContainer(
+    ProviderContainer container,
+    BuildContext snackBarContext,
+    String habitId,
+    String habitName,
+  ) {
+    print(
+      'DEBUG: _performUndoWithContainer called for habit: $habitName (ID: $habitId)',
+    );
+
+    try {
+      print('DEBUG: Using stored ProviderContainer');
+      final habitNotifier = container.read(habitsProvider.notifier);
+
+      print('DEBUG: About to call restoreHabit for: $habitId');
+      habitNotifier
+          .restoreHabit(habitId)
+          .then((_) {
+            print('DEBUG: Successfully restored habit: $habitName');
+
+            // Show restore confirmation - use the snackbar's context
+            try {
+              final habitTheme = HabitTheme.of(snackBarContext);
+              ScaffoldMessenger.of(snackBarContext).hideCurrentSnackBar();
+              ScaffoldMessenger.of(snackBarContext).showSnackBar(
+                SnackBar(
+                  backgroundColor: habitTheme.cardBackground,
+                  content: Text(
+                    'Habit "$habitName" restored',
+                    style: TextStyle(color: habitTheme.habitCompleted),
+                  ),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            } catch (e) {
+              print('DEBUG: Could not show restore confirmation: $e');
+            }
+          })
+          .catchError((e) {
+            print('DEBUG: Error restoring habit: $e');
+            try {
+              final habitTheme = HabitTheme.of(snackBarContext);
+              ScaffoldMessenger.of(snackBarContext).showSnackBar(
+                SnackBar(
+                  backgroundColor: habitTheme.cardBackground,
+                  content: Text(
+                    'Could not restore habit. It may have expired.',
+                    style: TextStyle(color: habitTheme.habitMissed),
+                  ),
+                ),
+              );
+            } catch (e) {
+              print('DEBUG: Could not show error message: $e');
+            }
+          });
+    } catch (e) {
+      print('DEBUG: Error using ProviderContainer: $e');
+    }
   }
 
   Color _getStreakColor(StreakTier tier) {

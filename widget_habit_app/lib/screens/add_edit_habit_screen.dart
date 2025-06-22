@@ -25,6 +25,10 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
   late String? _selectedUnit;
   late double _completionThreshold;
 
+  // Date range variables (Phase 3A.2.2)
+  DateTime? _startDate;
+  DateTime? _endDate;
+
   // Available units for measurable habits
   final List<String> _availableUnits = [
     'glasses',
@@ -85,6 +89,10 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
     if (habit?.targetValue != null) {
       _targetController.text = habit!.targetValue.toString();
     }
+
+    // Date range variables (Phase 3A.2.2)
+    _startDate = habit?.startDate ?? DateTime.now();
+    _endDate = habit?.endDate;
   }
 
   @override
@@ -96,6 +104,17 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
+      // Validate start date is required
+      if (_startDate == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a start date'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       // Validate measurable habit specific fields
       if (_selectedType == HabitType.measurable) {
         if (_targetController.text.isEmpty) {
@@ -127,6 +146,9 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
         targetValue: targetValue,
         unit: _selectedType == HabitType.measurable ? _selectedUnit : null,
         completionThreshold: _completionThreshold,
+        // Date range (Phase 3A.2.2)
+        startDate: _startDate,
+        endDate: _endDate,
         // Preserve existing data if editing
         completedDates: widget.habit?.completedDates,
         missedDates: widget.habit?.missedDates,
@@ -202,6 +224,16 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
               Text('Frequency', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               _buildFrequencySelector(),
+
+              const SizedBox(height: 24),
+
+              // Date Range Selection (Phase 3A.2.2)
+              Text(
+                'Date Range',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              _buildDateRangeSelector(),
 
               const SizedBox(height: 32),
 
@@ -374,6 +406,114 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
     );
   }
 
+  Widget _buildDateRangeSelector() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          // Start Date Picker
+          ListTile(
+            leading: const Icon(Icons.event_note),
+            title: const Text('Start Date'),
+            subtitle: Text(
+              _startDate == null
+                  ? 'Select start date'
+                  : _formatDate(_startDate!),
+            ),
+            trailing: _startDate != null
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () => setState(() => _startDate = null),
+                  )
+                : null,
+            onTap: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: _startDate ?? DateTime.now(),
+                firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                lastDate:
+                    _endDate?.subtract(const Duration(days: 1)) ??
+                    DateTime.now().add(const Duration(days: 365)),
+              );
+              if (date != null) {
+                setState(() => _startDate = date);
+              }
+            },
+          ),
+          const Divider(height: 1),
+          // End Date Picker
+          ListTile(
+            leading: const Icon(Icons.event_available),
+            title: Text(
+              _endDate == null ? 'Active until (optional)' : 'Active until',
+            ),
+            subtitle: Text(
+              _endDate == null ? 'No end date' : _formatDate(_endDate!),
+            ),
+            trailing: _endDate != null
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () => setState(() => _endDate = null),
+                  )
+                : null,
+            onTap: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate:
+                    _endDate ??
+                    (_startDate?.add(const Duration(days: 30)) ??
+                        DateTime.now().add(const Duration(days: 30))),
+                firstDate:
+                    _startDate?.add(const Duration(days: 1)) ?? DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (date != null) {
+                // Phase 3A.2.2: Validate end date is not in the past
+                if (date.isBefore(
+                  DateTime.now().subtract(const Duration(days: 1)),
+                )) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Bro, which idiot is gonna end a habit in the fucking past?",
+                      ),
+                      duration: Duration(seconds: 3),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+                setState(() => _endDate = date);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method for date formatting
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return "${months[date.month - 1]} ${date.day}${date.year != DateTime.now().year ? ', ${date.year}' : ''}";
+  }
+
   Widget _buildPreview() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -426,8 +566,39 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
               ],
             ],
           ),
+          // Date range preview
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                Icons.calendar_today,
+                size: 16,
+                color: _startDate == null ? Colors.red : Colors.grey,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _getDateRangePreviewText(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _startDate == null ? Colors.red : Colors.grey,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  String _getDateRangePreviewText() {
+    if (_startDate == null) {
+      return 'Please select start date';
+    } else if (_endDate == null) {
+      return 'Starts ${_formatDate(_startDate!)}';
+    } else {
+      return 'Active from ${_formatDate(_startDate!)} to ${_formatDate(_endDate!)}';
+    }
   }
 }
