@@ -78,27 +78,19 @@ class HabitNotifier extends StateNotifier<List<Habit>> {
       onPermanentDelete: (habitId) async {
         // This gets called after 30 seconds if not undone
         await _repository.deleteHabit(habitId);
-        print('DEBUG: Permanent delete completed for $habitId');
       },
     );
 
     // Remove from current state immediately (UI feedback)
     state = state.where((h) => h.id != id).toList();
     updateWidgetData(state);
-
-    print('DEBUG: Habit temporarily removed from UI state');
   }
 
   // NEW: Restore habit method
   Future<void> restoreHabit(String id) async {
-    print('DEBUG: restoreHabit called for ID: $id');
     final restoredHabit = _undoService.restoreHabit(id);
-    print(
-      'DEBUG: UndoService.restoreHabit returned: ${restoredHabit?.name ?? 'null'}',
-    );
 
     if (restoredHabit != null) {
-      print('DEBUG: Adding habit back to repository: ${restoredHabit.name}');
       // Add back to repository
       await _repository.addHabit(restoredHabit);
 
@@ -106,10 +98,6 @@ class HabitNotifier extends StateNotifier<List<Habit>> {
       final updatedHabits = _repository.getAllHabits();
       state = updatedHabits;
       updateWidgetData(updatedHabits);
-
-      print('DEBUG: Habit state updated, UI should refresh immediately');
-    } else {
-      print('DEBUG: Could not restore habit - not found in undo service');
     }
   }
 

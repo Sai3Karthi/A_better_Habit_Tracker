@@ -36,19 +36,12 @@ class UndoService {
       deletedAt: DateTime.now(),
       cleanupTimer: timer,
     );
-
-    print(
-      'DEBUG: Habit ${habit.name} temporarily deleted, ${_undoTimeout.inSeconds}s to undo',
-    );
   }
 
   /// Restore a temporarily deleted habit
   Habit? restoreHabit(String habitId) {
     final deletedHabit = _deletedHabits[habitId];
     if (deletedHabit == null) {
-      print(
-        'DEBUG: Cannot restore habit $habitId - not found in temporary storage',
-      );
       return null;
     }
 
@@ -58,9 +51,6 @@ class UndoService {
     // Remove from temporary storage
     _deletedHabits.remove(habitId);
 
-    print(
-      'DEBUG: Habit ${deletedHabit.habit.name} restored from temporary deletion',
-    );
     return deletedHabit.habit;
   }
 
@@ -87,11 +77,6 @@ class UndoService {
   /// Permanently delete a habit (private)
   void _permanentlyDelete(String habitId) {
     final deletedHabit = _deletedHabits.remove(habitId);
-    if (deletedHabit != null) {
-      print(
-        'DEBUG: Habit ${deletedHabit.habit.name} permanently deleted after timeout',
-      );
-    }
   }
 
   /// Force permanent deletion of a specific habit
@@ -100,7 +85,6 @@ class UndoService {
     if (deletedHabit != null) {
       deletedHabit.cleanupTimer?.cancel();
       _deletedHabits.remove(habitId);
-      print('DEBUG: Habit ${deletedHabit.habit.name} force deleted');
     }
   }
 
@@ -120,10 +104,6 @@ class UndoService {
     for (final id in expired) {
       _deletedHabits.remove(id);
     }
-
-    if (expired.isNotEmpty) {
-      print('DEBUG: Cleaned up ${expired.length} expired deleted habits');
-    }
   }
 
   /// Cancel all pending deletions (for testing)
@@ -132,7 +112,6 @@ class UndoService {
       deletedHabit.cleanupTimer?.cancel();
     }
     _deletedHabits.clear();
-    print('DEBUG: All pending deletions cancelled');
   }
 
   /// Get count of temporarily deleted habits

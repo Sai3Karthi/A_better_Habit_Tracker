@@ -129,9 +129,6 @@ class Habit extends HiveObject {
 
     // Phase 3A.2.2: Check if date is within active range
     if (!isActiveOnDate(normalizedDate)) {
-      print(
-        'DEBUG: Attempted to set status for inactive date $normalizedDate on habit $name',
-      );
       return; // Don't allow updates outside date range
     }
 
@@ -191,9 +188,6 @@ class Habit extends HiveObject {
 
     // Phase 3A.2.2: Check if date is within active range
     if (!isActiveOnDate(normalizedDate)) {
-      print(
-        'DEBUG: Attempted to increment value for inactive date $normalizedDate on habit $name',
-      );
       return; // Don't allow updates outside date range
     }
 
@@ -211,9 +205,6 @@ class Habit extends HiveObject {
 
     // Phase 3A.2.2: Check if date is within active range
     if (!isActiveOnDate(normalizedDate)) {
-      print(
-        'DEBUG: Attempted to set value for inactive date $normalizedDate on habit $name',
-      );
       return; // Don't allow updates outside date range
     }
 
@@ -233,9 +224,6 @@ class Habit extends HiveObject {
 
     // Phase 3A.2.2: Check if date is within active range
     if (!isActiveOnDate(normalizedDate)) {
-      print(
-        'DEBUG: Attempted to reset value for inactive date $normalizedDate on habit $name',
-      );
       return; // Don't allow updates outside date range
     }
 
@@ -317,8 +305,6 @@ class Habit extends HiveObject {
     final today = DateTime.now();
     final normalizedToday = DateTime(today.year, today.month, today.day);
 
-    print('DEBUG getCurrentStreak: Starting calculation for habit: $name');
-
     // Start from today and go backwards, checking each valid day
     int currentStreak = 0;
     DateTime currentDate = normalizedToday;
@@ -333,25 +319,15 @@ class Habit extends HiveObject {
       final isActiveDate = isActiveOnDate(currentDate);
 
       if (isValidDay && isActiveDate) {
-        print(
-          'DEBUG getCurrentStreak: Checking date ${currentDate.toString().substring(0, 10)}',
-        );
-
         final status = getStatusForDate(currentDate);
-        print(
-          'DEBUG getCurrentStreak: Status for ${currentDate.toString().substring(0, 10)}: $status',
-        );
 
         if (status == HabitStatus.completed) {
           currentStreak++;
-          print('DEBUG getCurrentStreak: Streak incremented to $currentStreak');
         } else if (status == HabitStatus.missed) {
           // Missed day found - streak resets to 0 immediately
-          print('DEBUG getCurrentStreak: MISSED DAY FOUND - Streak reset to 0');
           break;
         } else {
           // Empty status - no activity yet, continue checking backwards
-          print('DEBUG getCurrentStreak: Empty status, continuing...');
         }
       }
 
@@ -359,7 +335,6 @@ class Habit extends HiveObject {
       currentDate = currentDate.subtract(const Duration(days: 1));
     }
 
-    print('DEBUG getCurrentStreak: Final streak for $name: $currentStreak');
     return currentStreak;
   }
 
@@ -367,8 +342,6 @@ class Habit extends HiveObject {
   int getCurrentFailStreak() {
     final today = DateTime.now();
     final normalizedToday = DateTime(today.year, today.month, today.day);
-
-    print('DEBUG getCurrentFailStreak: Starting calculation for habit: $name');
 
     // Start from today and go backwards, checking each valid day
     int currentFailStreak = 0;
@@ -384,29 +357,15 @@ class Habit extends HiveObject {
       final isActiveDate = isActiveOnDate(currentDate);
 
       if (isValidDay && isActiveDate) {
-        print(
-          'DEBUG getCurrentFailStreak: Checking date ${currentDate.toString().substring(0, 10)}',
-        );
-
         final status = getStatusForDate(currentDate);
-        print(
-          'DEBUG getCurrentFailStreak: Status for ${currentDate.toString().substring(0, 10)}: $status',
-        );
 
         if (status == HabitStatus.missed) {
           currentFailStreak++;
-          print(
-            'DEBUG getCurrentFailStreak: Fail streak incremented to $currentFailStreak',
-          );
         } else if (status == HabitStatus.completed) {
           // Completed day found - fail streak resets to 0 immediately
-          print(
-            'DEBUG getCurrentFailStreak: COMPLETED DAY FOUND - Fail streak reset to 0',
-          );
           break;
         } else {
           // Empty status - no activity yet, continue checking backwards
-          print('DEBUG getCurrentFailStreak: Empty status, continuing...');
         }
       }
 
@@ -414,9 +373,6 @@ class Habit extends HiveObject {
       currentDate = currentDate.subtract(const Duration(days: 1));
     }
 
-    print(
-      'DEBUG getCurrentFailStreak: Final fail streak for $name: $currentFailStreak',
-    );
     return currentFailStreak;
   }
 
@@ -526,10 +482,6 @@ class Habit extends HiveObject {
       startDate.day,
     );
 
-    print(
-      'DEBUG getCompletionStats: Habit $name from ${normalizedStart.toString().substring(0, 10)} to ${normalizedNow.toString().substring(0, 10)}',
-    );
-
     // Calculate total expected days and completed days
     int totalValidDays = 0;
     int completedDays = 0;
@@ -550,14 +502,6 @@ class Habit extends HiveObject {
         if (_isCompletedForDate(currentDate)) {
           completedDays++;
         }
-
-        print(
-          'DEBUG getCompletionStats: ${currentDate.toString().substring(0, 10)} - valid/active, completed: ${_isCompletedForDate(currentDate)}',
-        );
-      } else {
-        print(
-          'DEBUG getCompletionStats: ${currentDate.toString().substring(0, 10)} - skipped (valid: $isValidDay, active: $isActiveDate)',
-        );
       }
 
       currentDate = currentDate.add(const Duration(days: 1));
@@ -566,10 +510,6 @@ class Habit extends HiveObject {
     final percentage = totalValidDays > 0
         ? (completedDays / totalValidDays)
         : 0.0;
-
-    print(
-      'DEBUG getCompletionStats: Final stats for $name: $completedDays/$totalValidDays (${(percentage * 100).round()}%)',
-    );
 
     return CompletionStats(
       completed: completedDays,

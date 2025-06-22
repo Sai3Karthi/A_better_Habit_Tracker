@@ -438,7 +438,7 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
                     _endDate?.subtract(const Duration(days: 1)) ??
                     DateTime.now().add(const Duration(days: 365)),
               );
-              if (date != null) {
+              if (date != null && mounted) {
                 setState(() => _startDate = date);
               }
             },
@@ -470,7 +470,7 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
                     _startDate?.add(const Duration(days: 1)) ?? DateTime.now(),
                 lastDate: DateTime.now().add(const Duration(days: 365)),
               );
-              if (date != null) {
+              if (date != null && mounted) {
                 // Phase 3A.2.2: Validate end date is not in the past
                 if (date.isBefore(
                   DateTime.now().subtract(const Duration(days: 1)),

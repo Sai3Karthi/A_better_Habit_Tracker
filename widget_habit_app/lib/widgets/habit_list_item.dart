@@ -352,16 +352,12 @@ class HabitListItem extends ConsumerWidget {
                   await ref
                       .read(habitsProvider.notifier)
                       .temporaryDeleteHabit(habitId);
-                  print(
-                    'DEBUG: Successfully temporarily deleted habit: $habitName',
-                  );
 
                   // Show success feedback with working undo
                   if (context.mounted) {
                     _showDeleteFeedback(context, ref, habitId, habitName);
                   }
                 } catch (e) {
-                  print('DEBUG: Error deleting habit: $e');
                   // TODO: Show error dialog if needed
                 }
               },
@@ -399,7 +395,6 @@ class HabitListItem extends ConsumerWidget {
           label: 'Undo',
           textColor: habitTheme.habitCompleted,
           onPressed: () {
-            print('DEBUG: Undo button tapped for habit: $habitName');
             // Use the stored container directly, no context needed
             _performUndoWithContainer(container, context, habitId, habitName);
           },
@@ -414,57 +409,54 @@ class HabitListItem extends ConsumerWidget {
     String habitId,
     String habitName,
   ) {
-    print(
-      'DEBUG: _performUndoWithContainer called for habit: $habitName (ID: $habitId)',
-    );
-
     try {
-      print('DEBUG: Using stored ProviderContainer');
       final habitNotifier = container.read(habitsProvider.notifier);
 
-      print('DEBUG: About to call restoreHabit for: $habitId');
       habitNotifier
           .restoreHabit(habitId)
           .then((_) {
-            print('DEBUG: Successfully restored habit: $habitName');
-
             // Show restore confirmation - use the snackbar's context
             try {
-              final habitTheme = HabitTheme.of(snackBarContext);
-              ScaffoldMessenger.of(snackBarContext).hideCurrentSnackBar();
-              ScaffoldMessenger.of(snackBarContext).showSnackBar(
-                SnackBar(
-                  backgroundColor: habitTheme.cardBackground,
-                  content: Text(
-                    'Habit "$habitName" restored',
-                    style: TextStyle(color: habitTheme.habitCompleted),
+              // Check if context is still mounted before using it
+              if (snackBarContext.mounted) {
+                final habitTheme = HabitTheme.of(snackBarContext);
+                ScaffoldMessenger.of(snackBarContext).hideCurrentSnackBar();
+                ScaffoldMessenger.of(snackBarContext).showSnackBar(
+                  SnackBar(
+                    backgroundColor: habitTheme.cardBackground,
+                    content: Text(
+                      'Habit "$habitName" restored',
+                      style: TextStyle(color: habitTheme.habitCompleted),
+                    ),
+                    duration: const Duration(seconds: 2),
                   ),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+                );
+              }
             } catch (e) {
-              print('DEBUG: Could not show restore confirmation: $e');
+              // Could not show restore confirmation
             }
           })
           .catchError((e) {
-            print('DEBUG: Error restoring habit: $e');
             try {
-              final habitTheme = HabitTheme.of(snackBarContext);
-              ScaffoldMessenger.of(snackBarContext).showSnackBar(
-                SnackBar(
-                  backgroundColor: habitTheme.cardBackground,
-                  content: Text(
-                    'Could not restore habit. It may have expired.',
-                    style: TextStyle(color: habitTheme.habitMissed),
+              // Check if context is still mounted before using it
+              if (snackBarContext.mounted) {
+                final habitTheme = HabitTheme.of(snackBarContext);
+                ScaffoldMessenger.of(snackBarContext).showSnackBar(
+                  SnackBar(
+                    backgroundColor: habitTheme.cardBackground,
+                    content: Text(
+                      'Could not restore habit. It may have expired.',
+                      style: TextStyle(color: habitTheme.habitMissed),
+                    ),
                   ),
-                ),
-              );
+                );
+              }
             } catch (e) {
-              print('DEBUG: Could not show error message: $e');
+              // Could not show error message
             }
           });
     } catch (e) {
-      print('DEBUG: Error using ProviderContainer: $e');
+      // Error using ProviderContainer
     }
   }
 
