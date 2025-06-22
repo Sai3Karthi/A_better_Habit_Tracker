@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/habit.dart';
 import '../providers.dart';
 import '../services/stats_service.dart';
+import '../services/habit_stats_cache.dart';
 import '../themes/habit_theme.dart';
 import 'week_progress_view.dart';
 import 'achievements_screen.dart';
@@ -15,9 +16,9 @@ class HabitListItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statsService = StatsService();
-    final streakStats = statsService.calculateStreakStats(habit);
-    final achievements = statsService.getAchievements(habit);
+    // Use cached stats for better performance
+    final streakStats = HabitStatsCache.getStreakStats(habit);
+    final achievements = HabitStatsCache.getAchievements(habit);
 
     return GestureDetector(
       onLongPress: () {

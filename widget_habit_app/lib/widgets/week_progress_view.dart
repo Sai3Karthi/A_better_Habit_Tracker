@@ -19,45 +19,41 @@ class WeekProgressView extends StatefulWidget {
 }
 
 class _WeekProgressViewState extends State<WeekProgressView>
-    with TickerProviderStateMixin {
-  late List<AnimationController> _animationControllers;
-  late List<Animation<double>> _scaleAnimations;
+    with SingleTickerProviderStateMixin {
+  late AnimationController _sharedController;
+  late Animation<double> _scaleAnimation;
+  int? _activeIndex; // Track which day is currently animating
 
   @override
   void initState() {
     super.initState();
-    // Create animation controllers for each day
-    _animationControllers = List.generate(
-      7,
-      (index) => AnimationController(
-        duration: const Duration(milliseconds: 150),
-        vsync: this,
-      ),
+    // Single shared animation controller (instead of 7)
+    _sharedController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
     );
 
-    _scaleAnimations = _animationControllers
-        .map(
-          (controller) => Tween<double>(begin: 1.0, end: 0.85).animate(
-            CurvedAnimation(parent: controller, curve: Curves.easeInOut),
-          ),
-        )
-        .toList();
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.85).animate(
+      CurvedAnimation(parent: _sharedController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
-    for (final controller in _animationControllers) {
-      controller.dispose();
-    }
+    _sharedController.dispose();
     super.dispose();
   }
 
   void _onTapDown(int index) {
-    _animationControllers[index].forward();
+    _activeIndex = index;
+    _sharedController.forward();
   }
 
   void _onTapUp(int index) {
-    _animationControllers[index].reverse();
+    if (_activeIndex == index) {
+      _sharedController.reverse();
+      _activeIndex = null;
+    }
   }
 
   // Check if a date is in the future
@@ -139,12 +135,16 @@ class _WeekProgressViewState extends State<WeekProgressView>
               isActiveDate,
             ),
             child: AnimatedBuilder(
-              animation: _scaleAnimations[index],
+              animation: _scaleAnimation,
               builder: (context, child) {
+                // Only apply animation to the active index
+                final shouldAnimate = _activeIndex == index;
                 return Transform.scale(
                   scale: (!isActiveDate || !isValidDay || isFuture)
                       ? 1.0
-                      : _scaleAnimations[index].value,
+                      : shouldAnimate
+                      ? _scaleAnimation.value
+                      : 1.0,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
