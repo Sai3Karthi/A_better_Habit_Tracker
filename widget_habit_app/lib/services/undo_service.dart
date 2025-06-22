@@ -76,7 +76,7 @@ class UndoService {
 
   /// Permanently delete a habit (private)
   void _permanentlyDelete(String habitId) {
-    final deletedHabit = _deletedHabits.remove(habitId);
+    _deletedHabits.remove(habitId);
   }
 
   /// Force permanent deletion of a specific habit

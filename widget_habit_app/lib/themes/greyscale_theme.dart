@@ -14,7 +14,6 @@ class GreyscaleTheme {
   static const Color _pureWhite = Color(0xFFFFFFFF);
 
   // Accent Greys (for subtle distinction)
-  static const Color _activeGrey = Color(0xFF3A3A3A);
   static const Color _inactiveGrey = Color(0xFFB0B0B0);
   static const Color _borderGrey = Color(0xFFD0D0D0);
 

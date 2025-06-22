@@ -6,7 +6,6 @@ import '../services/stats_service.dart';
 import '../themes/habit_theme.dart';
 import 'week_progress_view.dart';
 import 'achievements_screen.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class HabitListItem extends ConsumerWidget {
   final Habit habit;

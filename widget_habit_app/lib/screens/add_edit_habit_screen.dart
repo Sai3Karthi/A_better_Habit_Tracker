@@ -352,14 +352,13 @@ class _AddEditHabitScreenState extends ConsumerState<AddEditHabitScreen> {
     return Wrap(
       spacing: 8,
       children: _colorOptions.map((color) {
-        final isSelected =
-            _colorHex ==
-            '#FF${color.value.toRadixString(16).substring(2).toUpperCase()}';
+        final colorHex =
+            '#FF${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+        final isSelected = _colorHex == colorHex;
         return GestureDetector(
           onTap: () {
             setState(() {
-              _colorHex =
-                  '#FF${color.value.toRadixString(16).substring(2).toUpperCase()}';
+              _colorHex = colorHex;
             });
           },
           child: Container(

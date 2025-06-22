@@ -98,7 +98,6 @@ class ThemeManager extends ChangeNotifier {
       case AppThemeType.dark:
         return _buildDarkBaseTheme();
       case AppThemeType.light:
-      default:
         return _buildLightBaseTheme();
     }
   }
@@ -115,7 +114,6 @@ class ThemeManager extends ChangeNotifier {
       case AppThemeType.dark:
         return _buildDarkHabitTheme();
       case AppThemeType.light:
-      default:
         return _buildLightHabitTheme();
     }
   }
@@ -263,7 +261,7 @@ class ThemeManager extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (_customSeedColor != null) {
-        await prefs.setInt(_customColorKey, _customSeedColor!.value);
+        await prefs.setInt(_customColorKey, _customSeedColor!.toARGB32());
       }
     } catch (e) {
       debugPrint('Error saving custom color: $e');

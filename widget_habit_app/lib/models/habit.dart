@@ -520,43 +520,10 @@ class Habit extends HiveObject {
 
   // Helper methods for streak calculations
 
-  DateTime _getPreviousValidDay(DateTime date) {
-    DateTime currentDate = date.subtract(const Duration(days: 1));
-
-    while (true) {
-      final weekday = currentDate.weekday;
-      final isValidDay = frequency.isEmpty || frequency.contains(weekday);
-
-      if (isValidDay) return currentDate;
-
-      currentDate = currentDate.subtract(const Duration(days: 1));
-
-      // Don't go before creation date
-      if (currentDate.isBefore(creationDate)) return creationDate;
-    }
-  }
-
-  DateTime _getNextValidDay(DateTime date) {
-    DateTime currentDate = date.add(const Duration(days: 1));
-
-    while (true) {
-      final weekday = currentDate.weekday;
-      final isValidDay = frequency.isEmpty || frequency.contains(weekday);
-
-      if (isValidDay) return currentDate;
-
-      currentDate = currentDate.add(const Duration(days: 1));
-    }
-  }
-
   bool _isSameDay(DateTime date1, DateTime date2) {
     return date1.year == date2.year &&
         date1.month == date2.month &&
         date1.day == date2.day;
-  }
-
-  DateTime _normalizeDate(DateTime date) {
-    return DateTime(date.year, date.month, date.day);
   }
 
   // Date Range Helper Methods (Phase 3A.2.2)
@@ -593,10 +560,12 @@ class Habit extends HiveObject {
   /// Get formatted date range text for UI display
   String getDateRangeText() {
     if (startDate == null && endDate == null) return "";
-    if (startDate != null && endDate == null)
+    if (startDate != null && endDate == null) {
       return "From ${_formatDate(startDate!)}";
-    if (startDate == null && endDate != null)
+    }
+    if (startDate == null && endDate != null) {
       return "Until ${_formatDate(endDate!)}";
+    }
     return "${_formatDate(startDate!)} - ${_formatDate(endDate!)}";
   }
 
