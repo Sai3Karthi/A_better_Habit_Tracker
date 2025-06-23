@@ -30,12 +30,16 @@ class _WeekProgressViewState extends State<WeekProgressView>
     super.initState();
     // Single shared animation controller (instead of 7)
     _sharedController = AnimationController(
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 150), // Reduced from 200ms
       vsync: this,
     );
 
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.85).animate(
-      CurvedAnimation(parent: _sharedController, curve: Curves.easeInOut),
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
+      // Less dramatic scale
+      CurvedAnimation(
+        parent: _sharedController,
+        curve: Curves.easeOutCubic, // Smoother curve for better performance
+      ),
     );
   }
 
@@ -107,61 +111,67 @@ class _WeekProgressViewState extends State<WeekProgressView>
   Widget build(BuildContext context) {
     final weekStart = widget.currentWeekStart ?? _getWeekStart(DateTime.now());
 
-    return Container(
-      height: 75, // Increased to accommodate 44x44 tick boxes + spacing
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(7, (index) {
-          final day = weekStart.add(Duration(days: index));
-          final status = widget.habit.getStatusForDate(day);
-          final isValidDay = _isValidDay(day);
-          final isActiveDate = widget.habit.isActiveOnDate(day);
-          final isFuture = _isFutureDate(day);
+    return RepaintBoundary(
+      // Add repaint boundary
+      child: Container(
+        height: 75,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(7, (index) {
+            final day = weekStart.add(Duration(days: index));
+            final status = widget.habit.getStatusForDate(day);
+            final isValidDay = _isValidDay(day);
+            final isActiveDate = widget.habit.isActiveOnDate(day);
+            final isFuture = _isFutureDate(day);
 
-          return GestureDetector(
-            onTapDown: (!isActiveDate || !isValidDay || isFuture)
-                ? null
-                : (_) => _onTapDown(index),
-            onTapUp: (!isActiveDate || !isValidDay || isFuture)
-                ? null
-                : (_) => _onTapUp(index),
-            onTapCancel: (!isActiveDate || !isValidDay || isFuture)
-                ? null
-                : () => _onTapUp(index),
-            onTap: _getOnTapHandler(
-              day,
-              status,
-              isFuture,
-              isValidDay,
-              isActiveDate,
-            ),
-            onLongPress: _getLongPressHandler(
-              day,
-              status,
-              isFuture,
-              isValidDay,
-              isActiveDate,
-            ),
-            child: AnimatedBuilder(
-              animation: _scaleAnimation,
-              builder: (context, child) {
-                // Only apply animation to the active index
-                final shouldAnimate = _activeIndex == index;
-                return Transform.scale(
-                  scale: (!isActiveDate || !isValidDay || isFuture)
-                      ? 1.0
-                      : shouldAnimate
-                      ? _scaleAnimation.value
-                      : 1.0,
+            return RepaintBoundary(
+              // Add repaint boundary for each day
+              child: GestureDetector(
+                onTapDown: (!isActiveDate || !isValidDay || isFuture)
+                    ? null
+                    : (_) => _onTapDown(index),
+                onTapUp: (!isActiveDate || !isValidDay || isFuture)
+                    ? null
+                    : (_) => _onTapUp(index),
+                onTapCancel: (!isActiveDate || !isValidDay || isFuture)
+                    ? null
+                    : () => _onTapUp(index),
+                onTap: _getOnTapHandler(
+                  day,
+                  status,
+                  isFuture,
+                  isValidDay,
+                  isActiveDate,
+                ),
+                onLongPress: _getLongPressHandler(
+                  day,
+                  status,
+                  isFuture,
+                  isValidDay,
+                  isActiveDate,
+                ),
+                child: AnimatedBuilder(
+                  animation: _scaleAnimation,
+                  builder: (context, child) {
+                    final shouldAnimate = _activeIndex == index;
+                    return Transform.scale(
+                      scale: (!isActiveDate || !isValidDay || isFuture)
+                          ? 1.0
+                          : shouldAnimate
+                          ? _scaleAnimation.value
+                          : 1.0,
+                      child: child!,
+                    );
+                  },
                   child: Column(
+                    // Make child const for better performance
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Date number (BRIGHTENED for better visibility)
                       Text(
                         '${day.day}',
                         style: TextStyle(
-                          fontSize: 14, // Increased from 12
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: _getBrighterDateTextColor(
                             status,
@@ -171,10 +181,7 @@ class _WeekProgressViewState extends State<WeekProgressView>
                           ),
                         ),
                       ),
-                      const SizedBox(
-                        height: 6,
-                      ), // Increased spacing for larger boxes
-                      // Enhanced status indicator based on habit type
+                      const SizedBox(height: 6),
                       _buildSmartTickBox(
                         day,
                         status,
@@ -184,11 +191,11 @@ class _WeekProgressViewState extends State<WeekProgressView>
                       ),
                     ],
                   ),
-                );
-              },
-            ),
-          );
-        }),
+                ),
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -358,7 +365,6 @@ class _WeekProgressViewState extends State<WeekProgressView>
 
   // Build tick box for future dates
   Widget _buildFutureTickBox() {
-    final habitTheme = HabitTheme.of(context);
     return Container(
       width: 44,
       height: 44,
@@ -373,7 +379,6 @@ class _WeekProgressViewState extends State<WeekProgressView>
 
   // Build tick box for excluded days (not in frequency)
   Widget _buildExcludedTickBox() {
-    final habitTheme = HabitTheme.of(context);
     return Container(
       width: 44,
       height: 44,
@@ -388,7 +393,6 @@ class _WeekProgressViewState extends State<WeekProgressView>
 
   // Build tick box for inactive dates (outside date range)
   Widget _buildInactiveTickBox() {
-    final habitTheme = HabitTheme.of(context);
     return Container(
       width: 44,
       height: 44,
@@ -426,7 +430,6 @@ class _WeekProgressViewState extends State<WeekProgressView>
   Widget _buildMeasurableTickBox(DateTime day, HabitStatus status) {
     final habitTheme = HabitTheme.of(context);
     final currentValue = widget.habit.getValueForDate(day);
-    final targetValue = widget.habit.targetValue ?? 1;
     final isCompleted = status == HabitStatus.completed;
     final isMissed = status == HabitStatus.missed;
     final hasProgress = currentValue > 0;

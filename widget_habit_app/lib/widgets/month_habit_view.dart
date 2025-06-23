@@ -4,292 +4,230 @@ import '../models/habit.dart';
 import '../providers.dart';
 import 'month_calendar_grid.dart';
 
-class MonthHabitView extends StatefulWidget {
-  final DateTime month; // First day of the month
+class MonthHabitView extends ConsumerStatefulWidget {
+  final DateTime month;
   final Function(DateTime, HabitStatus)? onDateTap;
+  final PageController
+  sharedHabitPageController; // SHARED CONTROLLER FROM PARENT
+  final int currentHabitIndex; // CURRENT INDEX FROM PARENT
+  final Function(int)? onHabitIndexChanged; // NOTIFY PARENT
 
-  const MonthHabitView({super.key, required this.month, this.onDateTap});
+  const MonthHabitView({
+    super.key,
+    required this.month,
+    this.onDateTap,
+    required this.sharedHabitPageController, // REQUIRED SHARED CONTROLLER
+    required this.currentHabitIndex, // REQUIRED CURRENT INDEX
+    this.onHabitIndexChanged,
+  });
 
   @override
-  State<MonthHabitView> createState() => _MonthHabitViewState();
+  ConsumerState<MonthHabitView> createState() => _MonthHabitViewState();
 }
 
-class _MonthHabitViewState extends State<MonthHabitView> {
-  late PageController _habitPageController;
-  int _currentHabitIndex = 0;
+class _MonthHabitViewState extends ConsumerState<MonthHabitView> {
+  late int _localHabitIndex; // LOCAL COPY FOR SYNCHRONIZATION
 
   @override
   void initState() {
     super.initState();
-    _habitPageController = PageController();
+    _localHabitIndex = widget.currentHabitIndex;
+
+    // Initialize shared controller if not already initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureControllerSync();
+    });
   }
 
   @override
-  void dispose() {
-    _habitPageController.dispose();
-    super.dispose();
+  void didUpdateWidget(MonthHabitView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Sync local index with parent changes
+    if (widget.currentHabitIndex != _localHabitIndex) {
+      _localHabitIndex = widget.currentHabitIndex;
+      _ensureControllerSync();
+    }
   }
 
-  String _getMonthYearText() {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[widget.month.month - 1]} ${widget.month.year}';
-  }
-
-  // Calculate month statistics for current habit
-  Map<String, dynamic> _calculateMonthStats(Habit habit) {
-    final firstDay = DateTime(widget.month.year, widget.month.month, 1);
-    final lastDay = DateTime(widget.month.year, widget.month.month + 1, 0);
-
-    int completedDays = 0;
-    int missedDays = 0;
-    int totalValidDays = 0;
-
-    for (int day = 1; day <= lastDay.day; day++) {
-      final date = DateTime(widget.month.year, widget.month.month, day);
-
-      // Only count days that are valid for this habit
-      if (habit.isActiveOnDate(date) &&
-          (habit.frequency.isEmpty || habit.frequency.contains(date.weekday))) {
-        totalValidDays++;
-
-        final status = habit.getStatusForDate(date);
-        if (status == HabitStatus.completed) {
-          completedDays++;
-        } else if (status == HabitStatus.missed) {
-          missedDays++;
+  // ENSURE CONTROLLER IS SYNCED WITH CURRENT INDEX
+  void _ensureControllerSync() {
+    if (widget.sharedHabitPageController.hasClients &&
+        widget.sharedHabitPageController.positions.isNotEmpty &&
+        mounted) {
+      final habits = ref.read(habitsProvider);
+      if (habits.isNotEmpty &&
+          _localHabitIndex >= 0 &&
+          _localHabitIndex < habits.length) {
+        // Only animate if we're not already on the right page
+        final currentPage = widget.sharedHabitPageController.page?.round();
+        if (currentPage != _localHabitIndex) {
+          Future.microtask(() {
+            if (mounted &&
+                widget.sharedHabitPageController.hasClients &&
+                widget.sharedHabitPageController.positions.isNotEmpty) {
+              widget.sharedHabitPageController.animateToPage(
+                _localHabitIndex,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+              );
+            }
+          });
         }
       }
     }
-
-    final completionRate = totalValidDays > 0
-        ? (completedDays / totalValidDays * 100)
-        : 0.0;
-
-    return {
-      'completed': completedDays,
-      'missed': missedDays,
-      'total': totalValidDays,
-      'rate': completionRate,
-    };
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, child) {
-        final habits = ref.watch(
-          habitsProvider,
-        ); // Direct List<Habit>, not AsyncValue
+    final habits = ref.watch(habitsProvider);
 
-        if (habits.isEmpty) {
-          return _buildEmptyState();
-        }
+    if (habits.isEmpty) {
+      return const Center(child: Text('No habits yet. Add one!'));
+    }
 
-        return Column(
-          children: [
-            // Month header with habit counter
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Month/Year
-                  Text(
-                    _getMonthYearText(),
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+    // Ensure local index is within bounds
+    if (_localHabitIndex >= habits.length) {
+      _localHabitIndex = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onHabitIndexChanged?.call(0);
+      });
+    }
 
-                  // Habit counter and navigation
-                  Row(
-                    children: [
-                      // Left arrow
-                      IconButton(
-                        icon: Icon(
-                          Icons.chevron_left,
-                          color: _currentHabitIndex > 0
-                              ? Colors.white
-                              : Colors.grey[600],
-                        ),
-                        onPressed: _currentHabitIndex > 0
-                            ? () => _habitPageController.previousPage(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              )
-                            : null,
-                      ),
-
-                      // Habit counter
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[800],
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          '${_currentHabitIndex + 1}/${habits.length}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-
-                      // Right arrow
-                      IconButton(
-                        icon: Icon(
-                          Icons.chevron_right,
-                          color: _currentHabitIndex < habits.length - 1
-                              ? Colors.white
-                              : Colors.grey[600],
-                        ),
-                        onPressed: _currentHabitIndex < habits.length - 1
-                            ? () => _habitPageController.nextPage(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut,
-                              )
-                            : null,
-                      ),
-                    ],
-                  ),
-                ],
+    return Column(
+      children: [
+        // IMPROVED habit navigation header with better state management
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.chevron_left,
+                  color: _localHabitIndex > 0 ? Colors.white : Colors.grey[600],
+                ),
+                onPressed: _localHabitIndex > 0
+                    ? () => _navigateToHabit(_localHabitIndex - 1)
+                    : null,
               ),
-            ),
-
-            // Horizontal habit scroller
-            Expanded(
-              child: PageView.builder(
-                controller: _habitPageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentHabitIndex = index;
-                  });
-                },
-                itemCount: habits.length,
-                itemBuilder: (context, index) {
-                  final habit = habits[index];
-                  return MonthCalendarGrid(
-                    habit: habit,
-                    month: widget.month,
-                    onDateTap: (date, status) {
-                      // Habit is already updated in MonthCalendarGrid tap handler
-                      // Don't call setStatusForDate again to avoid overriding incremented values
-                      ref.read(habitsProvider.notifier).updateHabit(habit);
-
-                      // Force local UI rebuild (month view specific fix)
-                      setState(() {});
-
-                      // Callback for any additional handling
-                      if (widget.onDateTap != null) {
-                        widget.onDateTap!(date, status);
-                      }
-                    },
-                  );
-                },
-              ),
-            ),
-
-            // Month navigation hint (dots indicator)
-            if (habits.length > 1)
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(habits.length, (index) {
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      width: 6,
-                      height: 6,
+              Expanded(
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: index == _currentHabitIndex
-                            ? Colors.white
-                            : Colors.grey[600],
+                        color: Colors.grey[800],
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                  }),
+                      child: Text(
+                        '${_localHabitIndex + 1}/${habits.length}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      habits[_localHabitIndex].name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-          ],
-        );
-      },
+              IconButton(
+                icon: Icon(
+                  Icons.chevron_right,
+                  color: _localHabitIndex < habits.length - 1
+                      ? Colors.white
+                      : Colors.grey[600],
+                ),
+                onPressed: _localHabitIndex < habits.length - 1
+                    ? () => _navigateToHabit(_localHabitIndex + 1)
+                    : null,
+              ),
+            ],
+          ),
+        ),
+
+        // ENHANCED habit scroller using shared controller
+        Expanded(
+          child: PageView.builder(
+            controller:
+                widget.sharedHabitPageController, // USE SHARED CONTROLLER
+            onPageChanged: (index) {
+              // Update local state and notify parent
+              setState(() {
+                _localHabitIndex = index;
+              });
+              widget.onHabitIndexChanged?.call(index);
+            },
+            itemCount: habits.length,
+            itemBuilder: (context, index) {
+              final habit = habits[index];
+
+              // ADD REPAINT BOUNDARY for better performance
+              return RepaintBoundary(
+                child: MonthCalendarGrid(
+                  key: ValueKey(
+                    '${habit.id}-${widget.month.year}-${widget.month.month}',
+                  ), // STABLE KEY
+                  habit: habit,
+                  month: widget.month,
+                  onDateTap: (date, status) {
+                    habit.setStatusForDate(date, status);
+                    ref.read(habitsProvider.notifier).updateHabit(habit);
+                    widget.onDateTap?.call(date, status);
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.calendar_month_outlined,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No habits for ${_getMonthYearText()}',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[400],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Add some habits to get started!',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 16),
-          // Helpful hint
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.symmetric(horizontal: 32),
-            decoration: BoxDecoration(
-              color: Colors.grey[800]?.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.lightbulb_outline,
-                  color: Colors.grey[500],
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    'Swipe up/down to navigate months\nSwipe left/right for different habits',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  // HELPER METHOD for habit navigation with enhanced safety
+  void _navigateToHabit(int newIndex) {
+    final habits = ref.read(habitsProvider);
+
+    // BOUNDS CHECK: Ensure index is valid
+    if (newIndex < 0 || newIndex >= habits.length) {
+      return;
+    }
+
+    // Use shared controller for navigation with safety checks
+    if (widget.sharedHabitPageController.hasClients &&
+        widget.sharedHabitPageController.positions.isNotEmpty) {
+      Future.microtask(() {
+        if (mounted &&
+            widget.sharedHabitPageController.hasClients &&
+            widget.sharedHabitPageController.positions.isNotEmpty) {
+          widget.sharedHabitPageController.animateToPage(
+            newIndex,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+
+    // Update local state and notify parent
+    setState(() {
+      _localHabitIndex = newIndex;
+    });
+    widget.onHabitIndexChanged?.call(newIndex);
   }
 }

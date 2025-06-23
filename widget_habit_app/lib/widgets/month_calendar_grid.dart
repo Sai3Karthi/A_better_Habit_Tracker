@@ -59,7 +59,6 @@ class _MonthCalendarGridState extends State<MonthCalendarGrid>
   // Generate calendar grid (42 days: 6 weeks × 7 days)
   List<DateTime?> _generateCalendarDays() {
     final firstDay = DateTime(widget.month.year, widget.month.month, 1);
-    final lastDay = DateTime(widget.month.year, widget.month.month + 1, 0);
 
     // Start from Monday of the first week
     final startDate = firstDay.subtract(Duration(days: firstDay.weekday - 1));
@@ -321,7 +320,6 @@ class _MonthCalendarGridState extends State<MonthCalendarGrid>
   Widget _buildMeasurableStatusIndicator(DateTime day, HabitStatus status) {
     final habitTheme = HabitTheme.of(context);
     final currentValue = widget.habit.getValueForDate(day);
-    final targetValue = widget.habit.targetValue ?? 1;
 
     if (status == HabitStatus.missed) {
       return Icon(Icons.close, color: habitTheme.habitMissed, size: 12);
@@ -571,13 +569,16 @@ class _MonthCalendarGridState extends State<MonthCalendarGrid>
   }
 
   String _getMonthStatsText() {
-    final firstDay = DateTime(widget.month.year, widget.month.month, 1);
-    final lastDay = DateTime(widget.month.year, widget.month.month + 1, 0);
+    final daysInMonth = DateTime(
+      widget.month.year,
+      widget.month.month + 1,
+      0,
+    ).day;
 
     int completedDays = 0;
     int totalValidDays = 0;
 
-    for (int day = 1; day <= lastDay.day; day++) {
+    for (int day = 1; day <= daysInMonth; day++) {
       final date = DateTime(widget.month.year, widget.month.month, day);
 
       // Skip future dates
@@ -603,6 +604,6 @@ class _MonthCalendarGridState extends State<MonthCalendarGrid>
       return "No active days this month";
     }
 
-    return "${completionRate.round()}% completed • ${currentStreak} day streak";
+    return "${completionRate.round()}% completed • $currentStreak day streak";
   }
 }

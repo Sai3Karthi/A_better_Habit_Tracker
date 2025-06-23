@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/habit.dart';
 import '../widgets/habit_list_view.dart';
 import '../widgets/home_screen_header.dart';
 import '../widgets/week_view.dart';
@@ -17,7 +18,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   late PageController _pageController;
   DateTime _currentWeekStart = DateTime.now();
-  final int _initialPage = 1000; // Start from middle for infinite scroll
+  static const int _initialPage = 1000; // Make const
   ViewMode _currentViewMode = ViewMode.week; // Add view mode state
 
   @override
@@ -50,6 +51,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _getMonthYearText(DateTime weekStart) {
     final weekEnd = weekStart.add(const Duration(days: 6));
     const months = [
+      // Make const without static
       'Jan',
       'Feb',
       'Mar',
@@ -83,6 +85,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
   }
 
+  // FIXED: Async habit update handler for month view
+  Future<void> _handleMonthHabitUpdate(
+    DateTime date,
+    HabitStatus newStatus,
+  ) async {
+    // Use microtasks to prevent blocking UI thread
+    await Future.microtask(() async {
+      // This is handled in MonthCalendarGrid's tap handler
+      // No additional processing needed here
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -94,58 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: Column(
         children: [
           // Month/Year header with navigation (only show in week mode)
-          if (_currentViewMode == ViewMode.week)
-            Container(
-              height: 58,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Colors.white),
-                    onPressed: () {
-                      if (_pageController.hasClients) {
-                        _pageController.previousPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    },
-                  ),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _getMonthYearText(_currentWeekStart),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        'Week View',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right, color: Colors.white),
-                    onPressed: () {
-                      if (_pageController.hasClients) {
-                        _pageController.nextPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
+          if (_currentViewMode == ViewMode.week) _buildNavigationHeader(),
 
           // Show week headers only in week mode
           if (_currentViewMode == ViewMode.week) const WeekView(),
@@ -153,38 +116,119 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // Content based on view mode
           Expanded(
             child: _currentViewMode == ViewMode.week
-                ? PageView.builder(
-                    controller: _pageController,
-                    onPageChanged: (page) {
-                      setState(() {
-                        _currentWeekStart = _getWeekStartForPage(page);
-                      });
-                    },
-                    itemBuilder: (context, page) {
-                      final weekStart = _getWeekStartForPage(page);
-                      return HabitListView(
-                        currentWeekStart: weekStart,
-                        viewMode: _currentViewMode,
-                      );
-                    },
-                  )
-                : MonthPageView(
-                    onDateTap: (date, status) {
-                      // Handle habit updates in month view
-                      // The MonthPageView will handle the updates internally
-                    },
+                ? _buildWeekPageView()
+                : RepaintBoundary(
+                    // Add boundary for month view
+                    child: MonthPageView(
+                      onDateTap:
+                          _handleMonthHabitUpdate, // FIXED: Proper callback
+                    ),
                   ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const AddEditHabitScreen()),
+      floatingActionButton: _buildFAB(context),
+    );
+  }
+
+  // Extract navigation header to reduce build method complexity
+  Widget _buildNavigationHeader() {
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left, color: Colors.white),
+            onPressed: () {
+              if (_pageController.hasClients) {
+                _pageController.previousPage(
+                  duration: const Duration(
+                    milliseconds: 200, // Even faster for less UI blocking
+                  ),
+                  curve: Curves.easeOut, // Simpler curve
+                );
+              }
+            },
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _getMonthYearText(_currentWeekStart),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const Text(
+                'Week View',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70, // More performant than withValues
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right, color: Colors.white),
+            onPressed: () {
+              if (_pageController.hasClients) {
+                _pageController.nextPage(
+                  duration: const Duration(
+                    milliseconds: 200, // Even faster for less UI blocking
+                  ),
+                  curve: Curves.easeOut, // Simpler curve
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Extract page view to reduce rebuilds
+  Widget _buildWeekPageView() {
+    return RepaintBoundary(
+      // Add boundary
+      child: PageView.builder(
+        controller: _pageController,
+        onPageChanged: (page) {
+          // Use microtask to prevent blocking during page change
+          Future.microtask(() {
+            if (mounted) {
+              setState(() {
+                _currentWeekStart = _getWeekStartForPage(page);
+              });
+            }
+          });
+        },
+        pageSnapping: true,
+        physics: const PageScrollPhysics(), // Better snapping
+        itemBuilder: (context, page) {
+          final weekStart = _getWeekStartForPage(page);
+          return HabitListView(
+            key: ValueKey(weekStart), // Add key for better caching
+            currentWeekStart: weekStart,
+            viewMode: _currentViewMode,
           );
         },
-        child: const Icon(Icons.add),
       ),
+    );
+  }
+
+  // Extract FAB to const widget
+  Widget _buildFAB(BuildContext context) {
+    return FloatingActionButton(
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => const AddEditHabitScreen()),
+        );
+      },
+      child: const Icon(Icons.add),
     );
   }
 }

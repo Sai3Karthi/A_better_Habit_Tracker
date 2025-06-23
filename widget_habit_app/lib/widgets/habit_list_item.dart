@@ -27,79 +27,97 @@ class HabitListItem extends ConsumerWidget {
     final streakStats = HabitStatsCache.getStreakStats(habit);
     final achievements = HabitStatsCache.getAchievements(habit);
 
-    return GestureDetector(
-      onLongPress: () {
-        _showDeleteConfirmation(context, ref);
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          border: streakStats.isOnFire
-              ? Border.all(
-                  color: _getStreakColor(streakStats.streakTier, context),
-                  width: 2,
-                )
-              : Border.all(
-                  color: HabitTheme.of(context).cardBorder.withOpacity(0.3),
-                  width: 1,
-                ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with habit name and streak badge
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    habit.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+    return RepaintBoundary(
+      child: GestureDetector(
+        onLongPress: () {
+          _showDeleteConfirmation(context, ref);
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            border: streakStats.isOnFire
+                ? Border.all(
+                    color: _getStreakColor(streakStats.streakTier, context),
+                    width: 2,
+                  )
+                : Border.all(
+                    color: HabitTheme.of(
+                      context,
+                    ).cardBorder.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, // Optimize column size
+            children: [
+              // Header with habit name and streak badge
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      habit.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1, // Prevent multi-line overflow
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ),
-                // ALWAYS show streak badge, even if 0
-                _buildStreakBadge(context, streakStats, achievements),
-              ],
-            ),
-
-            // Achievement badges row (if any)
-            if (achievements.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              _buildAchievementBadges(achievements),
-            ],
-
-            const SizedBox(height: 8),
-
-            // Show progress view based on current view mode
-            if (viewMode == ViewMode.week)
-              WeekProgressView(
-                habit: habit,
-                currentWeekStart: currentWeekStart,
-                onDateTap: (date, newStatus) {
-                  habit.setStatusForDate(date, newStatus);
-                  ref.read(habitsProvider.notifier).updateHabit(habit);
-                },
-              )
-            else
-              // TODO: Implement MonthProgressView
-              Text(
-                'Month view coming soon...',
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontStyle: FontStyle.italic,
-                ),
+                  // ALWAYS show streak badge, even if 0
+                  RepaintBoundary(
+                    child: _buildStreakBadge(
+                      context,
+                      streakStats,
+                      achievements,
+                    ),
+                  ),
+                ],
               ),
 
-            // ALWAYS show stats summary
-            const SizedBox(height: 8),
-            _buildStatsSummary(context, streakStats, achievements),
-          ],
+              // Achievement badges row (if any)
+              if (achievements.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                RepaintBoundary(child: _buildAchievementBadges(achievements)),
+              ],
+
+              const SizedBox(height: 8),
+
+              // Show progress view based on current view mode
+              RepaintBoundary(
+                child: viewMode == ViewMode.week
+                    ? WeekProgressView(
+                        habit: habit,
+                        currentWeekStart: currentWeekStart,
+                        onDateTap: (date, newStatus) {
+                          habit.setStatusForDate(date, newStatus);
+                          ref.read(habitsProvider.notifier).updateHabit(habit);
+                        },
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Text(
+                          'Month view coming soon...',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+              ),
+
+              // ALWAYS show stats summary
+              const SizedBox(height: 8),
+              RepaintBoundary(
+                child: _buildStatsSummary(context, streakStats, achievements),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -110,7 +128,7 @@ class HabitListItem extends ConsumerWidget {
     StreakStats stats,
     List<Achievement> achievements,
   ) {
-    final failStreak = habit.getCurrentFailStreak();
+    final failStreak = HabitStatsCache.getFailStreak(habit);
 
     return GestureDetector(
       onTap: () => _showAchievementsScreen(context, achievements, stats),
@@ -236,6 +254,10 @@ class HabitListItem extends ConsumerWidget {
     StreakStats stats,
     List<Achievement> achievements,
   ) {
+    // FIXED: Use cached versions to prevent expensive loops on every rebuild
+    final completionStats = HabitStatsCache.getCompletionStats(habit);
+    final dateRangeText = HabitStatsCache.getDateRangeText(habit);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -249,20 +271,20 @@ class HabitListItem extends ConsumerWidget {
             ),
             const SizedBox(width: 8),
 
-            // Completion stats (NEW)
+            // Completion stats (NOW CACHED - no more expensive loops!)
             Text(
-              habit.getCompletionStats().getDisplayText(),
+              completionStats.getDisplayText(),
               style: TextStyle(color: Colors.grey[400], fontSize: 11),
             ),
 
-            // Date range info if available (Phase 3A.2.2)
-            if (habit.getDateRangeText().isNotEmpty) ...[
+            // Date range info if available (NOW CACHED - no more formatting on every rebuild!)
+            if (dateRangeText.isNotEmpty) ...[
               const SizedBox(width: 8),
               const Icon(Icons.calendar_today, size: 10, color: Colors.grey),
               const SizedBox(width: 2),
               Flexible(
                 child: Text(
-                  habit.getDateRangeText(),
+                  dateRangeText,
                   style: TextStyle(color: Colors.grey[400], fontSize: 10),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -344,9 +366,14 @@ class HabitListItem extends ConsumerWidget {
 
     showDialog(
       context: context,
+      barrierColor: Colors.black.withValues(
+        alpha: 0.6,
+      ), // Add background opacity
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: habitTheme.cardBackground,
+          backgroundColor: habitTheme.cardBackground.withValues(
+            alpha: 0.95,
+          ), // Add slight transparency
           title: Text(
             'Delete Habit',
             style: TextStyle(color: habitTheme.textPrimary),

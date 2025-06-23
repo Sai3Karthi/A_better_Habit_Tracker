@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'models/habit.dart';
@@ -10,16 +11,13 @@ import 'themes/color_palette.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive
-  await Hive.initFlutter();
+  // Show splash immediately
+  runApp(const SplashApp());
 
-  // Register adapters - CRITICAL: Register HabitTypeAdapter first!
-  Hive.registerAdapter(HabitTypeAdapter());
-  Hive.registerAdapter(HabitAdapter());
+  // Initialize in background
+  final habitBox = await _initializeApp();
 
-  // Open Hive box
-  final habitBox = await Hive.openBox<Habit>('habits');
-
+  // Launch main app
   runApp(
     ProviderScope(
       overrides: [habitBoxProvider.overrideWithValue(habitBox)],
@@ -28,8 +26,54 @@ Future<void> main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+Future<Box<Habit>> _initializeApp() async {
+  // Initialize Hive
+  await Hive.initFlutter();
+
+  // Register adapters - CRITICAL: Register HabitTypeAdapter first!
+  Hive.registerAdapter(HabitTypeAdapter());
+  Hive.registerAdapter(HabitAdapter());
+
+  // Open Hive box
+  return await Hive.openBox<Habit>('habits');
+}
+
+// Lightweight splash screen
+class SplashApp extends StatelessWidget {
+  const SplashApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Container(
+        color: const Color(0xFF121212), // Dark background
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.blue),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Warm up shaders on first frame
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      // This helps with first animation jank
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +93,7 @@ class MyApp extends StatelessWidget {
       title: 'Elysian Goals',
       theme: darkTheme,
       home: const HomeScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }

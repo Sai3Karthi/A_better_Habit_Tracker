@@ -56,5 +56,5 @@ class AppColors {
   // Progress indicators
   static const Color progressComplete = Color.fromARGB(255, 56, 192, 63);
   static const Color progressPartial = orange;
-  static const Color progressBackground = Color.fromARGB(0, 2, 0, 0);
+  static const Color progressBackground = Color.fromARGB(174, 140, 140, 140);
 }

@@ -1,7 +1,7 @@
 import '../models/habit.dart';
 import 'stats_service.dart';
 
-/// Cached statistics for a habit with validation
+/// Enhanced cached statistics with ALL expensive operations
 class CachedHabitStats {
   final int currentStreak;
   final int currentFailStreak;
@@ -11,6 +11,8 @@ class CachedHabitStats {
   final bool isOnFire;
   final int daysUntilNextMilestone;
   final List<Achievement> achievements;
+  final CompletionStats completionStats;
+  final String dateRangeText;
   final DateTime cacheTime;
   final String habitDataHash;
 
@@ -23,25 +25,34 @@ class CachedHabitStats {
     required this.isOnFire,
     required this.daysUntilNextMilestone,
     required this.achievements,
+    required this.completionStats,
+    required this.dateRangeText,
     required this.cacheTime,
     required this.habitDataHash,
   });
 
-  /// Create cached stats from a habit
+  /// Create cached stats from a habit - NOW INCLUDES ALL EXPENSIVE OPERATIONS
   factory CachedHabitStats.fromHabit(Habit habit) {
     final statsService = StatsService();
     final streakStats = statsService.calculateStreakStats(habit);
     final achievements = statsService.getAchievements(habit);
 
+    // CACHE the expensive operations that were causing frame drops
+    final completionStats = habit.getCompletionStats();
+    final dateRangeText = habit.getDateRangeText();
+    final currentFailStreak = habit.getCurrentFailStreak();
+
     return CachedHabitStats(
       currentStreak: streakStats.current,
-      currentFailStreak: streakStats.currentFails,
+      currentFailStreak: currentFailStreak,
       longestStreak: streakStats.longest,
       completionRate: streakStats.completionRate,
       streakTier: streakStats.streakTier,
       isOnFire: streakStats.isOnFire,
       daysUntilNextMilestone: streakStats.daysUntilNextMilestone,
       achievements: achievements,
+      completionStats: completionStats,
+      dateRangeText: dateRangeText,
       cacheTime: DateTime.now(),
       habitDataHash: _generateHabitHash(habit),
     );
@@ -58,9 +69,9 @@ class CachedHabitStats {
     return currentHash == habitDataHash;
   }
 
-  /// Generate a simple hash of habit data that affects calculations
+  /// Enhanced hash that includes completion and date range data
   static String _generateHabitHash(Habit habit) {
-    return '${habit.completedDates.length}-${habit.missedDates.length}-${habit.dailyValues.length}-${habit.creationDate.millisecondsSinceEpoch}';
+    return '${habit.completedDates.length}-${habit.missedDates.length}-${habit.dailyValues.length}-${habit.creationDate.millisecondsSinceEpoch}-${habit.startDate?.millisecondsSinceEpoch ?? 0}-${habit.endDate?.millisecondsSinceEpoch ?? 0}';
   }
 
   /// Convert to StreakStats for compatibility
@@ -107,6 +118,21 @@ class HabitStatsCache {
     return getStats(habit).achievements;
   }
 
+  /// NEW: Get cached fail streak - PREVENTS 365-DAY LOOPS!
+  static int getFailStreak(Habit habit) {
+    return getStats(habit).currentFailStreak;
+  }
+
+  /// NEW: Get cached completion stats - PREVENTS EXPENSIVE LOOPS!
+  static CompletionStats getCompletionStats(Habit habit) {
+    return getStats(habit).completionStats;
+  }
+
+  /// NEW: Get cached date range text - PREVENTS FORMATTING ON EVERY REBUILD!
+  static String getDateRangeText(Habit habit) {
+    return getStats(habit).dateRangeText;
+  }
+
   /// Invalidate cache for a specific habit
   static void invalidate(String habitId) {
     _cache.remove(habitId);
@@ -138,6 +164,8 @@ class HabitStatsCache {
       'validEntries': validEntries,
       'expiredEntries': _cache.length - validEntries,
       'maxCacheSize': _maxCacheSize,
+      'cacheHitRate':
+          validEntries / (_cache.length + 1), // Avoid division by zero
     };
   }
 
