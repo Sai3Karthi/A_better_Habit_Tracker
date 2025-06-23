@@ -4,6 +4,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'models/habit.dart';
 import 'providers.dart';
 import 'screens/home_screen.dart';
+import 'themes/habit_theme.dart';
+import 'themes/color_palette.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,9 +33,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Create a clean dark theme with our HabitTheme extension
+    final darkTheme = ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: AppColors.blue,
+        brightness: Brightness.dark,
+      ),
+      // Add our single clean dark theme extension
+      extensions: [HabitTheme.darkTheme()],
+    );
+
     return MaterialApp(
       title: 'Elysian Goals',
-      theme: ThemeData(primarySwatch: Colors.blue, brightness: Brightness.dark),
+      theme: darkTheme,
       home: const HomeScreen(),
     );
   }

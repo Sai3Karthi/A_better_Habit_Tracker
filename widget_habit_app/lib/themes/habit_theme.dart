@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'color_palette.dart';
 
 /// Custom theme extension for habit-specific colors
 /// This extends ThemeExtension to integrate with Material Design 3
@@ -185,45 +186,40 @@ class HabitTheme extends ThemeExtension<HabitTheme> {
   // Helper method to get the theme from context
   static HabitTheme of(BuildContext context) {
     return Theme.of(context).extension<HabitTheme>() ??
-        _defaultLightTheme(); // Fallback to default
+        darkTheme(); // Always default to dark theme
   }
 
-  // Public method to get default light theme
-  static HabitTheme defaultLightTheme() {
-    return _defaultLightTheme();
-  }
-
-  // Default light theme factory
-  static HabitTheme _defaultLightTheme() {
+  // THE ONE CLEAN DARK THEME - matches month view style
+  static HabitTheme darkTheme() {
     return const HabitTheme(
       // Streak Colors
-      streakFireColor: Color(0xFFFF6B35), // Orange-red
-      streakLightningColor: Color(0xFF007AFF), // Blue
-      // Achievement Colors (matching current tier colors)
-      achievementBronze: Color(0xFFCD853F), // Peru
-      achievementSilver: Color(0xFF4682B4), // Steel Blue
-      achievementGold: Color(0xFFB8860B), // Dark Goldenrod
-      achievementPlatinum: Color(0xFF9932CC), // Dark Orchid
+      streakFireColor: AppColors.streakFire,
+      streakLightningColor: AppColors.streakLightning,
+      // Achievement Colors
+      achievementBronze: AppColors.achievementBronze,
+      achievementSilver: AppColors.achievementSilver,
+      achievementGold: AppColors.achievementGold,
+      achievementPlatinum: AppColors.achievementPlatinum,
       // Habit Status Colors
-      habitCompleted: Color(0xFF4CAF50), // Green
-      habitPartial: Color(0xFFFF9500), // Orange
-      habitMissed: Color(0xFFFF5722), // Red-Orange
-      habitEmpty: Color(0xFF9E9E9E), // Grey
-      habitExcluded: Color(0xFFBDBDBD), // Light Grey
-      habitFuture: Color(0xFFE0E0E0), // Very Light Grey
+      habitCompleted: AppColors.statusCompleted,
+      habitPartial: AppColors.statusPartial,
+      habitMissed: AppColors.statusMissed,
+      habitEmpty: AppColors.statusEmpty,
+      habitExcluded: AppColors.statusExcluded,
+      habitFuture: AppColors.statusFuture,
       // Progress Indicators
-      progressRingComplete: Color(0xFF4CAF50), // Green
-      progressRingPartial: Color(0xFFFF9500), // Orange
-      progressBackground: Color(0xFFE0E0E0), // Light Grey
+      progressRingComplete: AppColors.progressComplete,
+      progressRingPartial: AppColors.progressPartial,
+      progressBackground: AppColors.progressBackground,
       // UI Elements
-      cardBackground: Color(0xFFFFFFFF), // White
-      cardBorder: Color(0xFFE0E0E0), // Light Grey
-      cardSelectedBorder: Color(0xFF007AFF), // Blue
-      buttonPrimary: Color(0xFF007AFF), // Blue
-      buttonSecondary: Color(0xFF6C757D), // Grey
-      textPrimary: Color(0xFF212529), // Dark Grey
-      textSecondary: Color(0xFF6C757D), // Medium Grey
-      textHint: Color(0xFF9E9E9E), // Light Grey
+      cardBackground: AppColors.transparent,
+      cardBorder: AppColors.cardBorder,
+      cardSelectedBorder: AppColors.cardSelectedBorder,
+      buttonPrimary: AppColors.buttonPrimary,
+      buttonSecondary: AppColors.buttonSecondary,
+      textPrimary: AppColors.textPrimary,
+      textSecondary: AppColors.textSecondary,
+      textHint: AppColors.textHint,
     );
   }
 }

@@ -363,11 +363,11 @@ class _WeekProgressViewState extends State<WeekProgressView>
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: habitTheme.habitFuture,
-        border: Border.all(color: habitTheme.cardBorder, width: 2.0),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.transparent, // Transparent like month view
+        border: Border.all(color: Colors.grey[600]!, width: 1.5),
+        borderRadius: BorderRadius.circular(6), // Match month view
       ),
-      child: Icon(Icons.schedule, color: habitTheme.textSecondary, size: 18),
+      child: Icon(Icons.schedule, color: Colors.grey[500], size: 16),
     );
   }
 
@@ -378,11 +378,11 @@ class _WeekProgressViewState extends State<WeekProgressView>
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: habitTheme.habitExcluded,
-        border: Border.all(color: habitTheme.cardBorder, width: 2.0),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.transparent, // Transparent like month view
+        border: Border.all(color: Colors.grey[600]!, width: 1.5),
+        borderRadius: BorderRadius.circular(6), // Match month view
       ),
-      child: Icon(Icons.block, color: habitTheme.textSecondary, size: 18),
+      child: Icon(Icons.block, color: Colors.grey[500], size: 16),
     );
   }
 
@@ -393,9 +393,9 @@ class _WeekProgressViewState extends State<WeekProgressView>
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: Colors.grey[800]!.withValues(alpha: 0.3),
-        border: Border.all(color: Colors.grey[600]!, width: 1.0),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.transparent, // Transparent like month view
+        border: Border.all(color: Colors.grey[600]!, width: 1.5),
+        borderRadius: BorderRadius.circular(6), // Match month view
       ),
       child: Icon(
         Icons.calendar_today_outlined,
@@ -411,10 +411,12 @@ class _WeekProgressViewState extends State<WeekProgressView>
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: _getBackgroundColor(status),
-        border: Border.all(color: _getBorderColor(status), width: 2.0),
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: _getBoxShadow(status),
+        color: _getMeasurableBackgroundColor(status), // Use same as measurable
+        border: Border.all(
+          color: _getMeasurableBorderColor(status), // Use same as measurable
+          width: 1.5, // Match month view
+        ),
+        borderRadius: BorderRadius.circular(6), // Match month view
       ),
       child: _buildStatusIcon(status),
     );
@@ -425,7 +427,6 @@ class _WeekProgressViewState extends State<WeekProgressView>
     final habitTheme = HabitTheme.of(context);
     final currentValue = widget.habit.getValueForDate(day);
     final targetValue = widget.habit.targetValue ?? 1;
-    final progress = currentValue / targetValue;
     final isCompleted = status == HabitStatus.completed;
     final isMissed = status == HabitStatus.missed;
     final hasProgress = currentValue > 0;
@@ -437,50 +438,35 @@ class _WeekProgressViewState extends State<WeekProgressView>
         color: _getMeasurableBackgroundColor(status),
         border: Border.all(
           color: _getMeasurableBorderColor(status),
-          width: 2.0,
+          width: 1.5, // Reduced from 2.0 to match month view
         ),
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: _getMeasurableBoxShadow(status),
+        borderRadius: BorderRadius.circular(
+          6,
+        ), // Reduced from 8 to match month view
       ),
-      child: Stack(
-        children: [
-          // Progress ring (only show if not missed and has progress)
-          if (hasProgress && !isCompleted && !isMissed)
-            Positioned.fill(
-              child: CircularProgressIndicator(
-                value: progress.clamp(0.0, 1.0),
-                strokeWidth: 2.5,
-                backgroundColor: habitTheme.progressBackground,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  progress >= 1.0
-                      ? habitTheme.progressRingComplete
-                      : habitTheme.progressRingPartial,
+      child: Center(
+        child: isMissed
+            ? Icon(
+                Icons.close,
+                color: habitTheme.habitMissed,
+                size: 16,
+              ) // Reduced from 18
+            : isCompleted
+            ? Icon(
+                Icons.check,
+                color: habitTheme.progressRingComplete,
+                size: 16, // Reduced from 18
+              )
+            : hasProgress
+            ? Text(
+                '$currentValue',
+                style: TextStyle(
+                  fontSize: 16, // Increased from 12 to match month view
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white, // Changed to white for consistency
                 ),
-              ),
-            ),
-
-          // Content (progress text, completion icon, or missed icon)
-          Center(
-            child: isMissed
-                ? Icon(Icons.close, color: habitTheme.habitMissed, size: 18)
-                : isCompleted
-                ? Icon(
-                    Icons.check,
-                    color: habitTheme.progressRingComplete,
-                    size: 18,
-                  )
-                : hasProgress
-                ? Text(
-                    '$currentValue',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: habitTheme.textPrimary,
-                    ),
-                  )
-                : Icon(Icons.add, color: habitTheme.textHint, size: 18),
-          ),
-        ],
+              )
+            : const SizedBox(width: 16, height: 16), // Clean empty state
       ),
     );
   }
@@ -549,48 +535,6 @@ class _WeekProgressViewState extends State<WeekProgressView>
     }
   }
 
-  List<BoxShadow> _getMeasurableBoxShadow(HabitStatus status) {
-    final habitTheme = HabitTheme.of(context);
-    switch (status) {
-      case HabitStatus.completed:
-        return [
-          BoxShadow(
-            color: habitTheme.progressRingComplete.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: const Offset(0, 2),
-          ),
-        ];
-      case HabitStatus.partial:
-        return [
-          BoxShadow(
-            color: habitTheme.progressRingPartial.withValues(alpha: 0.3),
-            blurRadius: 6,
-            spreadRadius: 1,
-            offset: const Offset(0, 2),
-          ),
-        ];
-      case HabitStatus.missed:
-        return [
-          BoxShadow(
-            color: habitTheme.habitMissed.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: const Offset(0, 2),
-          ),
-        ];
-      case HabitStatus.empty:
-        return [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 4,
-            spreadRadius: 0,
-            offset: const Offset(0, 1),
-          ),
-        ];
-    }
-  }
-
   DateTime _getWeekStart(DateTime date) {
     // Get Monday of the current week
     final daysFromMonday = date.weekday - 1;
@@ -601,67 +545,33 @@ class _WeekProgressViewState extends State<WeekProgressView>
     ).subtract(Duration(days: daysFromMonday));
   }
 
-  Color _getDateColor(HabitStatus status) {
-    final habitTheme = HabitTheme.of(context);
-    switch (status) {
-      case HabitStatus.completed:
-        return habitTheme.habitCompleted;
-      case HabitStatus.missed:
-        return habitTheme.habitMissed;
-      case HabitStatus.partial:
-        return habitTheme.habitPartial;
-      case HabitStatus.empty:
-        return habitTheme.textPrimary;
-    }
-  }
-
-  Color _getBackgroundColor(HabitStatus status) {
-    final habitTheme = HabitTheme.of(context);
-    switch (status) {
-      case HabitStatus.completed:
-        return habitTheme.habitCompleted.withValues(alpha: 0.1);
-      case HabitStatus.missed:
-        return habitTheme.habitMissed.withValues(alpha: 0.1);
-      case HabitStatus.partial:
-        return habitTheme.habitPartial.withValues(alpha: 0.1);
-      case HabitStatus.empty:
-        return Colors.transparent;
-    }
-  }
-
-  Color _getBorderColor(HabitStatus status) {
-    final habitTheme = HabitTheme.of(context);
-    switch (status) {
-      case HabitStatus.completed:
-        return habitTheme.habitCompleted;
-      case HabitStatus.missed:
-        return habitTheme.habitMissed;
-      case HabitStatus.partial:
-        return habitTheme.habitPartial;
-      case HabitStatus.empty:
-        return habitTheme.cardBorder;
-    }
-  }
-
   Widget _buildStatusIcon(HabitStatus status) {
     final habitTheme = HabitTheme.of(context);
     switch (status) {
       case HabitStatus.completed:
         return Icon(
           Icons.check,
-          color: habitTheme.habitCompleted,
-          size: 18, // Increased from 14
+          color: habitTheme
+              .progressRingComplete, // Use progress color for consistency
+          size: 16, // Reduced from 18 to match month view
         );
       case HabitStatus.missed:
         return Icon(
           Icons.close,
           color: habitTheme.habitMissed,
-          size: 18, // Increased from 14
+          size: 16, // Reduced from 18 to match month view
         );
       case HabitStatus.partial:
-        return Icon(Icons.more_horiz, color: habitTheme.habitPartial, size: 18);
+        return Icon(
+          Icons.more_horiz,
+          color: habitTheme.progressRingPartial,
+          size: 16,
+        );
       case HabitStatus.empty:
-        return const SizedBox.shrink();
+        return const SizedBox(
+          width: 16,
+          height: 16,
+        ); // Clean empty state like month view
     }
   }
 
@@ -675,53 +585,6 @@ class _WeekProgressViewState extends State<WeekProgressView>
         return HabitStatus.empty;
       case HabitStatus.partial:
         return HabitStatus.completed; // Partial -> Complete
-    }
-  }
-
-  List<BoxShadow> _getBoxShadow(HabitStatus status) {
-    final habitTheme = HabitTheme.of(context);
-    switch (status) {
-      case HabitStatus.completed:
-        return [
-          BoxShadow(
-            color: habitTheme.habitCompleted.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: const Offset(0, 2),
-          ),
-          BoxShadow(
-            color: habitTheme.habitCompleted.withValues(alpha: 0.1),
-            blurRadius: 12,
-            spreadRadius: 2,
-          ),
-        ];
-      case HabitStatus.missed:
-        return [
-          BoxShadow(
-            color: habitTheme.habitMissed.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: const Offset(0, 2),
-          ),
-        ];
-      case HabitStatus.partial:
-        return [
-          BoxShadow(
-            color: habitTheme.habitPartial.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 1,
-            offset: const Offset(0, 2),
-          ),
-        ];
-      case HabitStatus.empty:
-        return [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 4,
-            spreadRadius: 0,
-            offset: const Offset(0, 1),
-          ),
-        ];
     }
   }
 }

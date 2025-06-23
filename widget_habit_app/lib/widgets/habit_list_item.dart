@@ -35,14 +35,17 @@ class HabitListItem extends ConsumerWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[800],
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           border: streakStats.isOnFire
               ? Border.all(
-                  color: _getStreakColor(streakStats.streakTier),
+                  color: _getStreakColor(streakStats.streakTier, context),
                   width: 2,
                 )
-              : null,
+              : Border.all(
+                  color: HabitTheme.of(context).cardBorder.withOpacity(0.3),
+                  width: 1,
+                ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,13 +121,14 @@ class HabitListItem extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: _getStreakColor(stats.streakTier),
+              color: _getStreakColor(stats.streakTier, context),
               borderRadius: BorderRadius.circular(12),
               boxShadow: stats.isOnFire
                   ? [
                       BoxShadow(
                         color: _getStreakColor(
                           stats.streakTier,
+                          context,
                         ).withValues(alpha: 0.4),
                         blurRadius: 8,
                         spreadRadius: 1,
@@ -190,37 +194,39 @@ class HabitListItem extends ConsumerWidget {
   }
 
   Widget _buildAchievementBadges(List<Achievement> achievements) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: achievements.take(3).map((achievement) {
-          return Container(
-            margin: const EdgeInsets.only(right: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: _getAchievementColor(achievement.tier),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  achievement.iconData,
-                  style: const TextStyle(fontSize: 10),
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  achievement.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
+    return Builder(
+      builder: (context) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: achievements.take(3).map((achievement) {
+            return Container(
+              margin: const EdgeInsets.only(right: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _getAchievementColor(context, achievement.tier),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    achievement.iconData,
+                    style: const TextStyle(fontSize: 10),
                   ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+                  const SizedBox(width: 2),
+                  Text(
+                    achievement.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -479,31 +485,35 @@ class HabitListItem extends ConsumerWidget {
     }
   }
 
-  Color _getStreakColor(StreakTier tier) {
+  Color _getStreakColor(StreakTier tier, BuildContext context) {
+    final habitTheme = HabitTheme.of(context);
+
     switch (tier) {
       case StreakTier.platinum:
-        return const Color(0xFFE6E6FA); // Lavender
+        return habitTheme.achievementPlatinum;
       case StreakTier.gold:
-        return const Color(0xFFFFD700); // Gold
+        return habitTheme.achievementGold;
       case StreakTier.silver:
-        return const Color(0xFF007AFF); // Blue
+        return habitTheme.achievementSilver;
       case StreakTier.bronze:
-        return const Color(0xFFFF9500); // Orange
+        return habitTheme.achievementBronze;
       case StreakTier.none:
-        return Colors.grey[600]!;
+        return habitTheme.streakLightningColor;
     }
   }
 
-  Color _getAchievementColor(AchievementTier tier) {
+  Color _getAchievementColor(BuildContext context, AchievementTier tier) {
+    final habitTheme = HabitTheme.of(context);
+
     switch (tier) {
       case AchievementTier.platinum:
-        return const Color(0xFF9932CC); // Dark Orchid
+        return habitTheme.achievementPlatinum;
       case AchievementTier.gold:
-        return const Color(0xFFB8860B); // Dark Goldenrod
+        return habitTheme.achievementGold;
       case AchievementTier.silver:
-        return const Color(0xFF4682B4); // Steel Blue
+        return habitTheme.achievementSilver;
       case AchievementTier.bronze:
-        return const Color(0xFFCD853F); // Peru
+        return habitTheme.achievementBronze;
     }
   }
 }
