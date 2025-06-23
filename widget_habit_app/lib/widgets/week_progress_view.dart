@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Add for haptic feedback
 import '../models/habit.dart';
 import '../themes/habit_theme.dart';
 
@@ -107,7 +108,7 @@ class _WeekProgressViewState extends State<WeekProgressView>
     final weekStart = widget.currentWeekStart ?? _getWeekStart(DateTime.now());
 
     return Container(
-      height: 57, // Increased from 54 to fix 3-pixel overflow
+      height: 75, // Increased to accommodate 44x44 tick boxes + spacing
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(7, (index) {
@@ -134,6 +135,13 @@ class _WeekProgressViewState extends State<WeekProgressView>
               isValidDay,
               isActiveDate,
             ),
+            onLongPress: _getLongPressHandler(
+              day,
+              status,
+              isFuture,
+              isValidDay,
+              isActiveDate,
+            ),
             child: AnimatedBuilder(
               animation: _scaleAnimation,
               builder: (context, child) {
@@ -149,13 +157,13 @@ class _WeekProgressViewState extends State<WeekProgressView>
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Date number (aligned with header)
+                      // Date number (BRIGHTENED for better visibility)
                       Text(
                         '${day.day}',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 14, // Increased from 12
                           fontWeight: FontWeight.bold,
-                          color: _getDateTextColor(
+                          color: _getBrighterDateTextColor(
                             status,
                             isFuture,
                             isValidDay,
@@ -163,7 +171,9 @@ class _WeekProgressViewState extends State<WeekProgressView>
                           ),
                         ),
                       ),
-                      const SizedBox(height: 4), // Increased spacing
+                      const SizedBox(
+                        height: 6,
+                      ), // Increased spacing for larger boxes
                       // Enhanced status indicator based on habit type
                       _buildSmartTickBox(
                         day,
@@ -221,13 +231,101 @@ class _WeekProgressViewState extends State<WeekProgressView>
         widget.onDateTap!(day, nextStatus);
       };
     } else {
-      // Measurable habit: increment value
+      // FIXED: Measurable habit - smart tap logic with missed status handling
       return () {
-        widget.habit.incrementValue(day);
+        // Provide haptic feedback for better UX
+        HapticFeedback.lightImpact();
+
+        if (status == HabitStatus.completed) {
+          // If completed, reset to empty (allow user to restart)
+          widget.habit.resetValueForDate(day);
+        } else if (status == HabitStatus.missed) {
+          // If missed, reset to empty (allow user to retry)
+          widget.habit.resetValueForDate(day);
+        } else {
+          // If empty or partial, increment value as before
+          widget.habit.incrementValue(day);
+        }
+
         // Trigger update through the callback
         widget.onDateTap!(day, widget.habit.getStatusForDate(day));
       };
     }
+  }
+
+  // NEW: Long press handler for advanced interactions
+  VoidCallback? _getLongPressHandler(
+    DateTime day,
+    HabitStatus status,
+    bool isFuture,
+    bool isValidDay,
+    bool isActiveDate,
+  ) {
+    // Only provide long press for valid, active, non-future days
+    if (!isActiveDate || !isValidDay || isFuture) {
+      return null;
+    }
+
+    if (widget.onDateTap == null) return null;
+
+    // Long press behavior for both habit types
+    return () {
+      // Provide stronger haptic feedback for long press
+      HapticFeedback.mediumImpact();
+
+      if (widget.habit.type == HabitType.simple) {
+        // Simple habit: long press cycles to missed or empty
+        HabitStatus nextStatus;
+        if (status == HabitStatus.missed) {
+          nextStatus = HabitStatus.empty; // Missed -> Empty
+        } else {
+          nextStatus = HabitStatus.missed; // Any other -> Missed
+        }
+        widget.onDateTap!(day, nextStatus);
+      } else {
+        // Measurable habit: long press toggles missed state
+        if (status == HabitStatus.missed) {
+          // If already missed, reset to empty
+          widget.habit.resetValueForDate(day);
+        } else {
+          // Mark as missed (set to 0 and explicitly mark as missed)
+          widget.habit.resetValueForDate(day);
+          widget.habit.setStatusForDate(day, HabitStatus.missed);
+        }
+
+        // Trigger update through the callback
+        widget.onDateTap!(day, widget.habit.getStatusForDate(day));
+      }
+
+      // Show feedback to user about long press action
+      _showLongPressFeedback(status);
+    };
+  }
+
+  // NEW: Show feedback for long press actions
+  void _showLongPressFeedback(HabitStatus previousStatus) {
+    final habitTheme = HabitTheme.of(context);
+    String message;
+    Color color;
+
+    if (previousStatus == HabitStatus.missed) {
+      message = "Reset to empty";
+      color = habitTheme.textSecondary;
+    } else {
+      message = "Marked as missed";
+      color = habitTheme.habitMissed;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(milliseconds: 1500),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
   }
 
   // Build smart tick box based on habit type and day state
@@ -262,14 +360,14 @@ class _WeekProgressViewState extends State<WeekProgressView>
   Widget _buildFutureTickBox() {
     final habitTheme = HabitTheme.of(context);
     return Container(
-      width: 36,
-      height: 36,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         color: habitTheme.habitFuture,
         border: Border.all(color: habitTheme.cardBorder, width: 2.0),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(Icons.schedule, color: habitTheme.textSecondary, size: 16),
+      child: Icon(Icons.schedule, color: habitTheme.textSecondary, size: 18),
     );
   }
 
@@ -277,14 +375,14 @@ class _WeekProgressViewState extends State<WeekProgressView>
   Widget _buildExcludedTickBox() {
     final habitTheme = HabitTheme.of(context);
     return Container(
-      width: 36,
-      height: 36,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         color: habitTheme.habitExcluded,
         border: Border.all(color: habitTheme.cardBorder, width: 2.0),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(Icons.block, color: habitTheme.textSecondary, size: 16),
+      child: Icon(Icons.block, color: habitTheme.textSecondary, size: 18),
     );
   }
 
@@ -292,8 +390,8 @@ class _WeekProgressViewState extends State<WeekProgressView>
   Widget _buildInactiveTickBox() {
     final habitTheme = HabitTheme.of(context);
     return Container(
-      width: 36,
-      height: 36,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         color: Colors.grey[800]!.withValues(alpha: 0.3),
         border: Border.all(color: Colors.grey[600]!, width: 1.0),
@@ -302,7 +400,7 @@ class _WeekProgressViewState extends State<WeekProgressView>
       child: Icon(
         Icons.calendar_today_outlined,
         color: Colors.grey[500],
-        size: 14,
+        size: 16,
       ),
     );
   }
@@ -310,8 +408,8 @@ class _WeekProgressViewState extends State<WeekProgressView>
   // Build tick box for simple habits
   Widget _buildSimpleTickBox(HabitStatus status) {
     return Container(
-      width: 36,
-      height: 36,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         color: _getBackgroundColor(status),
         border: Border.all(color: _getBorderColor(status), width: 2.0),
@@ -329,11 +427,12 @@ class _WeekProgressViewState extends State<WeekProgressView>
     final targetValue = widget.habit.targetValue ?? 1;
     final progress = currentValue / targetValue;
     final isCompleted = status == HabitStatus.completed;
+    final isMissed = status == HabitStatus.missed;
     final hasProgress = currentValue > 0;
 
     return Container(
-      width: 36,
-      height: 36,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         color: _getMeasurableBackgroundColor(status),
         border: Border.all(
@@ -345,12 +444,12 @@ class _WeekProgressViewState extends State<WeekProgressView>
       ),
       child: Stack(
         children: [
-          // Progress ring
-          if (hasProgress && !isCompleted)
+          // Progress ring (only show if not missed and has progress)
+          if (hasProgress && !isCompleted && !isMissed)
             Positioned.fill(
               child: CircularProgressIndicator(
                 value: progress.clamp(0.0, 1.0),
-                strokeWidth: 2,
+                strokeWidth: 2.5,
                 backgroundColor: habitTheme.progressBackground,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   progress >= 1.0
@@ -360,32 +459,34 @@ class _WeekProgressViewState extends State<WeekProgressView>
               ),
             ),
 
-          // Content (progress text or completion icon)
+          // Content (progress text, completion icon, or missed icon)
           Center(
-            child: isCompleted
+            child: isMissed
+                ? Icon(Icons.close, color: habitTheme.habitMissed, size: 18)
+                : isCompleted
                 ? Icon(
                     Icons.check,
                     color: habitTheme.progressRingComplete,
-                    size: 16,
+                    size: 18,
                   )
                 : hasProgress
                 ? Text(
                     '$currentValue',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: habitTheme.textPrimary,
                     ),
                   )
-                : Icon(Icons.add, color: habitTheme.textHint, size: 16),
+                : Icon(Icons.add, color: habitTheme.textHint, size: 18),
           ),
         ],
       ),
     );
   }
 
-  // Get date text color based on state
-  Color _getDateTextColor(
+  // Get BRIGHTER date text color based on state (improved visibility)
+  Color _getBrighterDateTextColor(
     HabitStatus status,
     bool isFuture,
     bool isValidDay,
@@ -395,18 +496,28 @@ class _WeekProgressViewState extends State<WeekProgressView>
 
     // Phase 3A.2.2: Check active date FIRST - only grey out if truly outside range
     if (!isActiveDate) {
-      return Colors.grey[600]!; // More muted for inactive dates
+      return Colors.grey[400]!; // Brighter than before (was grey[600])
     }
 
     if (!isValidDay) {
-      return habitTheme.textHint;
+      return Colors.grey[300]!; // Brighter for excluded days
     }
 
     if (isFuture) {
-      return habitTheme.textHint;
+      return Colors.grey[300]!; // Brighter for future dates
     }
 
-    return _getDateColor(status);
+    // Make status-based colors much brighter
+    switch (status) {
+      case HabitStatus.completed:
+        return Colors.white; // Bright white for completed
+      case HabitStatus.missed:
+        return Colors.white; // Bright white for missed
+      case HabitStatus.partial:
+        return Colors.white; // Bright white for partial
+      case HabitStatus.empty:
+        return Colors.white; // Bright white for empty (was textPrimary)
+    }
   }
 
   // Color helpers for measurable habits
@@ -417,8 +528,9 @@ class _WeekProgressViewState extends State<WeekProgressView>
         return habitTheme.progressRingComplete.withValues(alpha: 0.1);
       case HabitStatus.partial:
         return habitTheme.progressRingPartial.withValues(alpha: 0.1);
-      case HabitStatus.empty:
       case HabitStatus.missed:
+        return habitTheme.habitMissed.withValues(alpha: 0.1);
+      case HabitStatus.empty:
         return Colors.transparent;
     }
   }
@@ -430,8 +542,9 @@ class _WeekProgressViewState extends State<WeekProgressView>
         return habitTheme.progressRingComplete;
       case HabitStatus.partial:
         return habitTheme.progressRingPartial;
-      case HabitStatus.empty:
       case HabitStatus.missed:
+        return habitTheme.habitMissed;
+      case HabitStatus.empty:
         return habitTheme.cardBorder;
     }
   }
@@ -457,8 +570,16 @@ class _WeekProgressViewState extends State<WeekProgressView>
             offset: const Offset(0, 2),
           ),
         ];
-      case HabitStatus.empty:
       case HabitStatus.missed:
+        return [
+          BoxShadow(
+            color: habitTheme.habitMissed.withValues(alpha: 0.3),
+            blurRadius: 8,
+            spreadRadius: 1,
+            offset: const Offset(0, 2),
+          ),
+        ];
+      case HabitStatus.empty:
         return [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),

@@ -108,7 +108,17 @@ class Habit extends HiveObject {
 
       return HabitStatus.empty;
     } else {
-      // Measurable habit: check if target threshold was reached
+      // FIXED: Measurable habit - check missed dates first, then values
+      final isMissed = missedDates.any(
+        (d) =>
+            d.year == normalizedDate.year &&
+            d.month == normalizedDate.month &&
+            d.day == normalizedDate.day,
+      );
+
+      if (isMissed) return HabitStatus.missed;
+
+      // Then check if target threshold was reached
       final currentValue = dailyValues[dateKey] ?? 0;
       final target = targetValue ?? 1;
       final threshold = (target * completionThreshold).ceil();
@@ -164,12 +174,34 @@ class Habit extends HiveObject {
           break;
       }
     } else {
-      // Measurable habit: this method is less relevant, use incrementValue/resetValue instead
-      // But for compatibility, we can set target value if completed
-      if (status == HabitStatus.completed) {
-        dailyValues[dateKey] = targetValue ?? 1;
-      } else if (status == HabitStatus.empty) {
-        dailyValues.remove(dateKey);
+      // FIXED: Measurable habit - handle all statuses properly
+      // Remove from missed dates first (cleanup)
+      missedDates.removeWhere(
+        (d) =>
+            d.year == normalizedDate.year &&
+            d.month == normalizedDate.month &&
+            d.day == normalizedDate.day,
+      );
+
+      switch (status) {
+        case HabitStatus.completed:
+          dailyValues[dateKey] = targetValue ?? 1;
+          break;
+        case HabitStatus.missed:
+          // Clear any progress and add to missed dates
+          dailyValues.remove(dateKey);
+          missedDates.add(normalizedDate);
+          break;
+        case HabitStatus.empty:
+          // Clear any progress, already removed from missed dates
+          dailyValues.remove(dateKey);
+          break;
+        case HabitStatus.partial:
+          // Keep existing value if it exists, otherwise set minimal value
+          if (!dailyValues.containsKey(dateKey) || dailyValues[dateKey] == 0) {
+            dailyValues[dateKey] = 1; // Minimal progress
+          }
+          break;
       }
     }
   }
@@ -197,6 +229,14 @@ class Habit extends HiveObject {
     final maxValue = (targetValue ?? 1) * 2; // Allow 200% of target max
 
     dailyValues[dateKey] = newValue.clamp(0, maxValue);
+
+    // FIXED: Remove from missed dates when incrementing (allows consecutive increments)
+    missedDates.removeWhere(
+      (d) =>
+          d.year == normalizedDate.year &&
+          d.month == normalizedDate.month &&
+          d.day == normalizedDate.day,
+    );
   }
 
   /// Set specific value for a date
@@ -228,7 +268,17 @@ class Habit extends HiveObject {
     }
 
     final dateKey = _getDateKey(normalizedDate);
+
+    // Remove from daily values
     dailyValues.remove(dateKey);
+
+    // FIXED: Also remove from missed dates to allow proper reset
+    missedDates.removeWhere(
+      (d) =>
+          d.year == normalizedDate.year &&
+          d.month == normalizedDate.month &&
+          d.day == normalizedDate.day,
+    );
   }
 
   /// Get progress percentage for a date (0.0 to 1.0+)
@@ -305,9 +355,12 @@ class Habit extends HiveObject {
     final today = DateTime.now();
     final normalizedToday = DateTime(today.year, today.month, today.day);
 
-    // Start from today and go backwards, checking each valid day
+    // FIXED: Start from yesterday unless today is already completed
+    // This prevents streak from dropping to 0 just because today isn't updated yet
+    DateTime currentDate = _getStreakStartDate(normalizedToday);
+
+    // Start counting streak
     int currentStreak = 0;
-    DateTime currentDate = normalizedToday;
 
     // Go back up to 365 days to find streak
     for (int i = 0; i < 365; i++) {
@@ -318,6 +371,7 @@ class Habit extends HiveObject {
       // Check if this date is within habit's active range
       final isActiveDate = isActiveOnDate(currentDate);
 
+      // ONLY check status for days that should be tracked
       if (isValidDay && isActiveDate) {
         final status = getStatusForDate(currentDate);
 
@@ -327,15 +381,38 @@ class Habit extends HiveObject {
           // Missed day found - streak resets to 0 immediately
           break;
         } else {
-          // Empty status - no activity yet, continue checking backwards
+          // Empty status - streak broken (no action taken on a day that should have been done)
+          break;
         }
       }
+      // IMPORTANT: If day is not valid (excluded by frequency) or not active,
+      // we continue without breaking the streak
 
       // Move to previous day
       currentDate = currentDate.subtract(const Duration(days: 1));
     }
 
     return currentStreak;
+  }
+
+  /// Helper method to determine streak calculation start date
+  /// Returns today if completed, otherwise yesterday
+  DateTime _getStreakStartDate(DateTime today) {
+    // Check if today should be counted (must be valid day and completed)
+    final weekday = today.weekday;
+    final isValidDay = frequency.isEmpty || frequency.contains(weekday);
+    final isActiveDate = isActiveOnDate(today);
+
+    if (isValidDay && isActiveDate) {
+      final todayStatus = getStatusForDate(today);
+      if (todayStatus == HabitStatus.completed) {
+        // Today is completed, include it in streak calculation
+        return today;
+      }
+    }
+
+    // Today is not completed or not a valid day, start from yesterday
+    return today.subtract(const Duration(days: 1));
   }
 
   /// Calculate the current fail streak (consecutive missed days from today backwards)
@@ -356,6 +433,7 @@ class Habit extends HiveObject {
       // Check if this date is within habit's active range
       final isActiveDate = isActiveOnDate(currentDate);
 
+      // ONLY check status for days that should be tracked
       if (isValidDay && isActiveDate) {
         final status = getStatusForDate(currentDate);
 
@@ -366,8 +444,11 @@ class Habit extends HiveObject {
           break;
         } else {
           // Empty status - no activity yet, continue checking backwards
+          // (for fail streaks, empty doesn't count as failed)
         }
       }
+      // IMPORTANT: If day is not valid (excluded by frequency) or not active,
+      // we continue without affecting the fail streak
 
       // Move to previous day
       currentDate = currentDate.subtract(const Duration(days: 1));
@@ -376,13 +457,13 @@ class Habit extends HiveObject {
     return currentFailStreak;
   }
 
-  /// Calculate the longest streak - Completely Fixed Algorithm
+  /// Calculate the longest streak - FIXED to handle frequency exclusions properly
   int getLongestStreak() {
     final today = DateTime.now();
     final normalizedToday = DateTime(today.year, today.month, today.day);
 
-    // Get all valid completed dates
-    List<DateTime> validCompletedDates = _getValidCompletedDates(
+    // Get all valid completed dates (only days that were supposed to be done)
+    List<DateTime> validCompletedDates = _getValidCompletedDatesForFrequency(
       normalizedToday,
     );
 
@@ -394,25 +475,19 @@ class Habit extends HiveObject {
     int maxStreak = 1; // At least 1 if we have any completed dates
     int currentStreak = 1;
 
-    // Compare each date with the next one to find consecutive sequences
+    // Check consecutive completion considering frequency
     for (int i = 1; i < validCompletedDates.length; i++) {
       final prevDate = validCompletedDates[i - 1];
       final currentDate = validCompletedDates[i];
 
-      // Check if dates are consecutive (exactly 1 day apart)
-      final daysDifference = currentDate.difference(prevDate).inDays;
-
-      if (daysDifference == 1) {
-        // Consecutive days found
+      // Check if these dates are consecutive VALID days (skipping excluded days)
+      if (_areConsecutiveValidDays(prevDate, currentDate)) {
         currentStreak++;
         if (currentStreak > maxStreak) {
           maxStreak = currentStreak;
         }
-      } else if (daysDifference == 0) {
-        // Same day (duplicate), ignore but don't reset streak
-        continue;
       } else {
-        // Gap found, reset streak to 1 (count the current date as start of new streak)
+        // Gap found (missed a valid day), reset streak
         currentStreak = 1;
       }
     }
@@ -420,16 +495,45 @@ class Habit extends HiveObject {
     return maxStreak;
   }
 
-  /// Helper method to get all valid completed dates for streak calculations
-  List<DateTime> _getValidCompletedDates(DateTime maxDate) {
+  /// Check if two dates are consecutive valid days considering frequency
+  bool _areConsecutiveValidDays(DateTime date1, DateTime date2) {
+    DateTime checkDate = date1.add(const Duration(days: 1));
+
+    // Walk forward from date1 to date2, looking for the next valid day
+    while (checkDate.isBefore(date2) || _isSameDay(checkDate, date2)) {
+      final weekday = checkDate.weekday;
+      final isValidDay = frequency.isEmpty || frequency.contains(weekday);
+      final isActiveDate = isActiveOnDate(checkDate);
+
+      if (isValidDay && isActiveDate) {
+        // This is a valid day - it should be date2 for them to be consecutive
+        return _isSameDay(checkDate, date2);
+      }
+
+      checkDate = checkDate.add(const Duration(days: 1));
+    }
+
+    return false;
+  }
+
+  /// Get valid completed dates that respect frequency restrictions
+  List<DateTime> _getValidCompletedDatesForFrequency(DateTime maxDate) {
     List<DateTime> validCompletedDates = [];
 
     if (type == HabitType.simple) {
-      // Filter out future dates from completedDates
-      validCompletedDates = completedDates
-          .map((date) => DateTime(date.year, date.month, date.day))
-          .where((date) => !date.isAfter(maxDate))
-          .toList();
+      // Filter completed dates to only include days that were supposed to be done
+      for (final date in completedDates) {
+        final normalizedDate = DateTime(date.year, date.month, date.day);
+        if (!normalizedDate.isAfter(maxDate)) {
+          final weekday = normalizedDate.weekday;
+          final isValidDay = frequency.isEmpty || frequency.contains(weekday);
+          final isActiveDate = isActiveOnDate(normalizedDate);
+
+          if (isValidDay && isActiveDate) {
+            validCompletedDates.add(normalizedDate);
+          }
+        }
+      }
     } else {
       // For measurable habits, check all days with values that meet threshold
       for (final entry in dailyValues.entries) {
@@ -446,12 +550,19 @@ class Habit extends HiveObject {
           if (year != null && month != null && day != null) {
             final date = DateTime(year, month, day);
 
-            // Only include non-future dates where target was reached
+            // Only include non-future dates where target was reached AND day was valid
             if (!date.isAfter(maxDate)) {
-              final target = targetValue ?? 1;
-              final threshold = (target * completionThreshold).ceil();
-              if (value >= threshold) {
-                validCompletedDates.add(date);
+              final weekday = date.weekday;
+              final isValidDay =
+                  frequency.isEmpty || frequency.contains(weekday);
+              final isActiveDate = isActiveOnDate(date);
+
+              if (isValidDay && isActiveDate) {
+                final target = targetValue ?? 1;
+                final threshold = (target * completionThreshold).ceil();
+                if (value >= threshold) {
+                  validCompletedDates.add(date);
+                }
               }
             }
           }

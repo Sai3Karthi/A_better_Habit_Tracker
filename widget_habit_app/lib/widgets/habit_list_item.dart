@@ -5,14 +5,21 @@ import '../providers.dart';
 import '../services/stats_service.dart';
 import '../services/habit_stats_cache.dart';
 import '../themes/habit_theme.dart';
+import '../widgets/side_menu.dart'; // Import for ViewMode
 import 'week_progress_view.dart';
 import 'achievements_screen.dart';
 
 class HabitListItem extends ConsumerWidget {
   final Habit habit;
   final DateTime? currentWeekStart;
+  final ViewMode viewMode;
 
-  const HabitListItem({super.key, required this.habit, this.currentWeekStart});
+  const HabitListItem({
+    super.key,
+    required this.habit,
+    this.currentWeekStart,
+    this.viewMode = ViewMode.week, // Default to week mode
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,14 +72,26 @@ class HabitListItem extends ConsumerWidget {
             ],
 
             const SizedBox(height: 8),
-            WeekProgressView(
-              habit: habit,
-              currentWeekStart: currentWeekStart,
-              onDateTap: (date, newStatus) {
-                habit.setStatusForDate(date, newStatus);
-                ref.read(habitsProvider.notifier).updateHabit(habit);
-              },
-            ),
+
+            // Show progress view based on current view mode
+            if (viewMode == ViewMode.week)
+              WeekProgressView(
+                habit: habit,
+                currentWeekStart: currentWeekStart,
+                onDateTap: (date, newStatus) {
+                  habit.setStatusForDate(date, newStatus);
+                  ref.read(habitsProvider.notifier).updateHabit(habit);
+                },
+              )
+            else
+              // TODO: Implement MonthProgressView
+              Text(
+                'Month view coming soon...',
+                style: TextStyle(
+                  color: Colors.grey[400],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
 
             // ALWAYS show stats summary
             const SizedBox(height: 8),
